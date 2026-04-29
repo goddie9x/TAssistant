@@ -58,11 +58,25 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
             }
             "OPEN_APP" -> {
                 val pm = context.packageManager
+                val cleanTarget = target?.replace(" ", "")?.lowercase() ?: ""
+                
+                // 1. Phím tắt mở thẳng Settings hệ thống nếu gọi
+                if (cleanTarget == "settings" || cleanTarget == "setting" || cleanTarget == "càiđặt") {
+                    context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(flags) })
+                    return
+                }
+
+                // 2. Cố gắng lấy Launch Intent thẳng
                 var intent = pm.getLaunchIntentForPackage(target ?: "")
+                
+                // 3. Quét Fuzzy Logic với CATEGORY_LAUNCHER (Bao gồm cả app hệ thống)
                 if (intent == null) {
-                    val cleanTarget = target?.replace(" ", "")?.lowercase() ?: ""
-                    val found = pm.getInstalledApplications(0).find { it.loadLabel(pm).toString().lowercase().replace(" ", "").contains(cleanTarget) }
-                    if (found != null) intent = pm.getLaunchIntentForPackage(found.packageName)
+                    val mainIntent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+                    val apps = pm.queryIntentActivities(mainIntent, 0)
+                    val found = apps.find { it.loadLabel(pm).toString().lowercase().replace(" ", "").contains(cleanTarget) }
+                    if (found != null) {
+                        intent = pm.getLaunchIntentForPackage(found.activityInfo.packageName)
+                    }
                 }
                 intent?.let { it.addFlags(flags); context.startActivity(it) }
             }

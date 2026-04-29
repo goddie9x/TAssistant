@@ -18,14 +18,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPrefsHelper
     private val commandUIs = mutableListOf<CommandUI>()
     private lateinit var customAppContainer: LinearLayout
+    private val installedApps = mutableListOf<AppInfo>()
 
     data class CommandUI(val key: String, val sw: Switch, val et: EditText)
+    data class AppInfo(val name: String, val pkg: String) { override fun toString() = name }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         prefs = SharedPrefsHelper(this)
         
+        val pm = packageManager
+        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+        val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+        installedApps.addAll(resolveInfos.map { AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName) }.distinctBy { it.pkg }.sortedBy { it.name })
+
         findViewById<EditText>(R.id.etApiKey).setText(prefs.apiKey)
         findViewById<EditText>(R.id.etWakeWord).setText(prefs.wakeWord)
 
@@ -53,29 +60,53 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnTestVoice).setOnClickListener { AssistantService.instance?.forceListen() }
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
+            val usedKeywords = mutableSetOf<String>()
+            var hasDuplicate = false
+
             prefs.apiKey = findViewById<EditText>(R.id.etApiKey).text.toString()
-            prefs.wakeWord = findViewById<EditText>(R.id.etWakeWord).text.toString()
-            commandUIs.forEach { prefs.saveCmd(it.key, it.sw.isChecked, it.et.text.toString()) }
+            prefs.wakeWord = findViewById<EditText>(R.id.etWakeWord).text.toString().trim().lowercase()
+            
+            commandUIs.forEach { 
+                val kw = it.et.text.toString().trim().lowercase()
+                if (kw.isNotEmpty() && !usedKeywords.add(kw)) hasDuplicate = true
+                prefs.saveCmd(it.key, it.sw.isChecked, kw) 
+            }
 
             val newCustomApps = JSONObject()
             for (i in 0 until customAppContainer.childCount) {
                 val row = customAppContainer.getChildAt(i) as LinearLayout
                 val kw = (row.getChildAt(0) as EditText).text.toString().trim().lowercase()
-                val pkg = (row.getChildAt(1) as EditText).text.toString().trim()
-                if (kw.isNotEmpty() && pkg.isNotEmpty()) newCustomApps.put(kw, pkg)
+                val pkgInfo = (row.getChildAt(1) as Spinner).selectedItem as? AppInfo
+                
+                if (kw.isNotEmpty() && pkgInfo != null) {
+                    if (!usedKeywords.add(kw)) hasDuplicate = true
+                    else newCustomApps.put(kw, pkgInfo.pkg)
+                }
             }
-            prefs.customAppConfig = newCustomApps.toString()
-            Toast.makeText(this, "All Settings Saved!", Toast.LENGTH_SHORT).show()
+
+            if (hasDuplicate) {
+                Toast.makeText(this, "⚠️ LỖI: Có lệnh bị trùng từ khóa! Hãy sửa lại.", Toast.LENGTH_LONG).show()
+            } else {
+                prefs.customAppConfig = newCustomApps.toString()
+                Toast.makeText(this, "All Settings Saved!", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun addCustomAppRow(keyword: String, pkg: String) {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 10) }
         val etKw = EditText(this).apply { setText(keyword); hint = "Keyword"; setTextColor(Color.parseColor("#00E676")); setHintTextColor(Color.GRAY); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 14f }
-        val etPkg = EditText(this).apply { setText(pkg); hint = "App/Package Name"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 14f }
+        
+        val spinner = Spinner(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1.5f)
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, installedApps)
+            val idx = installedApps.indexOfFirst { it.pkg == pkg }
+            if (idx >= 0) setSelection(idx)
+        }
+        
         val btnDel = Button(this).apply { text = "X"; setTextColor(Color.RED); setBackgroundColor(Color.TRANSPARENT); layoutParams = LinearLayout.LayoutParams(-2, -2) }
         btnDel.setOnClickListener { customAppContainer.removeView(row) }
-        row.addView(etKw); row.addView(etPkg); row.addView(btnDel)
+        row.addView(etKw); row.addView(spinner); row.addView(btnDel)
         customAppContainer.addView(row)
     }
 
