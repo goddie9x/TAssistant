@@ -1,67 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F5F5F5">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="TAssistant Control"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:textColor="#333333"
-            android:gravity="center"
-            android:layout_marginBottom="16dp"/>
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            android:layout_marginBottom="16dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Trạng thái quyền" android:textStyle="bold" android:textSize="16sp" android:textColor="#1976D2" android:layout_marginBottom="8dp"/>
-                <Button android:id="@+id/btnPermMic" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Micro"/>
-                <Button android:id="@+id/btnPermOverlay" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vẽ đè màn hình"/>
-                <Button android:id="@+id/btnPermAccessibility" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Quyền Trợ năng (Accessibility)"/>
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="#F5F5F5">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="TAssistant Control" android:textSize="28sp" android:textStyle="bold" android:textColor="#333333" android:gravity="center" android:layout_marginBottom="16dp"/>
+        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="4dp" android:layout_marginBottom="16dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Permissions Status" android:textStyle="bold" android:textSize="16sp" android:textColor="#1976D2" android:layout_marginBottom="8dp"/>
+                <Button android:id="@+id/btnPermMic" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Microphone"/>
+                <Button android:id="@+id/btnPermOverlay" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Screen Overlay"/>
+                <Button android:id="@+id/btnPermAccessibility" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Accessibility Service"/>
+                <Button android:id="@+id/btnPermWriteSettings" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="System Settings (Brightness/Volume)"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            android:layout_marginBottom="16dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cấu hình AI" android:textStyle="bold" android:textSize="16sp" android:textColor="#1976D2" android:layout_marginBottom="8dp"/>
+        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="12dp" app:cardElevation="4dp" android:layout_marginBottom="16dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AI Config &amp; Commands" android:textStyle="bold" android:textSize="16sp" android:textColor="#1976D2" android:layout_marginBottom="8dp"/>
                 <EditText android:id="@+id/etApiKey" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mistral API Key" android:inputType="textPassword"/>
-                <EditText android:id="@+id/etModel" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="AI Model (VD: mistral-small-latest)" android:layout_marginTop="8dp"/>
-                <EditText android:id="@+id/etWakeWord" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Từ khóa gọi (VD: hey bro)" android:layout_marginTop="8dp"/>
-                <Switch android:id="@+id/swOpenApp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cho phép mở App" android:layout_marginTop="12dp"/>
-                <Switch android:id="@+id/swSetAlarm" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cho phép đặt báo thức" android:layout_marginTop="8dp"/>
+                <EditText android:id="@+id/etModel" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="AI Model" android:layout_marginTop="8dp"/>
+                <EditText android:id="@+id/etWakeWord" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Wake Word (e.g., hey bro)" android:layout_marginTop="8dp"/>
+                <Switch android:id="@+id/swOpenApp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Open Apps" android:layout_marginTop="12dp"/>
+                <Switch android:id="@+id/swSetAlarm" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Set Alarm" android:layout_marginTop="8dp"/>
+                <Switch android:id="@+id/swMusic" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Music Playback" android:layout_marginTop="8dp"/>
+                <Switch android:id="@+id/swVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Volume/Brightness Control" android:layout_marginTop="8dp"/>
+                <Switch android:id="@+id/swSearch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Google Search" android:layout_marginTop="8dp"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
-
-        <Button android:id="@+id/btnTestVoice" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Kiểm tra Micro và Nhận diện" android:backgroundTint="#FF9800" android:layout_marginBottom="8dp"/>
-        <TextView android:id="@+id/tvVoiceResult" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="..." android:gravity="center" android:textColor="#555555" android:textStyle="italic" android:layout_marginBottom="16dp"/>
-        
-        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="60dp" android:text="LƯU VÀ KHỞI ĐỘNG" android:textSize="18sp" android:textStyle="bold" android:backgroundTint="#4CAF50"/>
+        <Button android:id="@+id/btnTestVoice" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="WAKE ASSISTANT (TEST)" android:backgroundTint="#FF9800" android:layout_marginBottom="16dp"/>
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="60dp" android:text="SAVE SETTINGS" android:textSize="18sp" android:textStyle="bold" android:backgroundTint="#4CAF50"/>
     </LinearLayout>
 </ScrollView>

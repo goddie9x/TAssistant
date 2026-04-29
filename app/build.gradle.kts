@@ -25,6 +25,10 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    
+    androidResources {
+        noCompress.addAll(listOf("mdl", "fst", "conf", "txt", "words", "raw", "ivector"))
+    }
 }
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
@@ -33,6 +37,5 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    // VOSK Offline Speech Recognition
     implementation("com.alphacephei:vosk-android:0.3.47")
 }
