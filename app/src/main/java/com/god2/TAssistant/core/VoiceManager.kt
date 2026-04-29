@@ -41,7 +41,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         if (isVoiceActive) return
         isVoiceActive = true
         audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-        AssistantService.instance?.stopSpeak() // Ngắt tiếng AI đang nói dở
+        AssistantService.instance?.stopSpeak()
         mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
     }
 
@@ -49,20 +49,43 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         val text = JSONObject(hypothesis).optString("text").lowercase().trim()
         if (text.isEmpty()) return
 
-        if (!isVoiceActive && text.contains(prefs.wakeWord.lowercase())) {
-            forceTrigger()
-        } else if (isVoiceActive) {
-            stopVoskInternal()
-            mainHandler.post { overlay.showOverlay("Processing...", text, true) }
-            
-            CoroutineScope(Dispatchers.IO).launch {
-                engine.processCommand(text) { resp, correction ->
-                    mainHandler.post {
-                        if (!isVoiceActive) return@post // Nếu người dùng đã Cancel thì hủy việc đọc
-                        val msg = if (correction != null) "$correction\n\n$resp" else resp
-                        overlay.showOverlay("Assistant", msg, false)
-                        AssistantService.instance?.speak(msg) {
-                            mainHandler.postDelayed({ releaseAndStop() }, 1500)
+        val wake = prefs.wakeWord.lowercase()
+
+        if (!isVoiceActive) {
+            if (text.contains(wake)) {
+                // Tách đoạn văn bản liền sau Wake Word (nếu có)
+                val cmd = text.substringAfter(wake).trim()
+                isVoiceActive = true
+                AssistantService.instance?.stopSpeak()
+                audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                
+                if (cmd.isNotEmpty()) {
+                    // Người dùng nói liền 1 hơi (vd: "hey bro open youtube")
+                    processCommandWithEdit(cmd)
+                } else {
+                    // Người dùng chỉ gọi "hey bro" rồi dừng
+                    mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
+                }
+            }
+        } else {
+            // Đang lắng nghe thì lấy toàn bộ text làm lệnh
+            processCommandWithEdit(text)
+        }
+    }
+
+    private fun processCommandWithEdit(cmd: String) {
+        stopVoskInternal() // Ngắt Mic để trả tài nguyên
+        mainHandler.post {
+            overlay.showEditableCommand(cmd) { finalCmd ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    engine.processCommand(finalCmd) { resp, correction ->
+                        mainHandler.post {
+                            if (!isVoiceActive) return@post
+                            val msg = if (correction != null) "$correction\n\n$resp" else resp
+                            overlay.showOverlay("Assistant", msg, false)
+                            AssistantService.instance?.speak(msg) {
+                                mainHandler.postDelayed({ releaseAndStop() }, 1500)
+                            }
                         }
                     }
                 }
@@ -76,9 +99,9 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     }
 
     private fun releaseAndStop() {
-        if (!isVoiceActive) return // Đã đóng rồi thì không xử lý nữa
+        if (!isVoiceActive) return
         isVoiceActive = false
-        AssistantService.instance?.stopSpeak() // NGẮT HỌNG AI NGAY LẬP TỨC
+        AssistantService.instance?.stopSpeak()
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
         stopVoskInternal()

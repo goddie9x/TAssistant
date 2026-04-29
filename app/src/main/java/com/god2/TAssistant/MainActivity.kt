@@ -38,10 +38,10 @@ class MainActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.categoryContainer)
         
-        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight" to "flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness")
+        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight" to "flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi" to "wifi", "bluetooth" to "bluetooth", "data" to "data")
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open")
-        val utilCmds = listOf("alarm" to "set alarm", "timer" to "set timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
+        val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "cancel alarm", "timer" to "set timer", "cancel_timer" to "cancel timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
         addCategory(container, "SYSTEM CONTROL", systemCmds)
         addCategory(container, "MEDIA", mediaCmds)
@@ -96,14 +96,12 @@ class MainActivity : AppCompatActivity() {
     private fun addCustomAppRow(keyword: String, pkg: String) {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 10) }
         val etKw = EditText(this).apply { setText(keyword); hint = "Keyword"; setTextColor(Color.parseColor("#00E676")); setHintTextColor(Color.GRAY); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 14f }
-        
         val spinner = Spinner(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1.5f)
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, installedApps)
             val idx = installedApps.indexOfFirst { it.pkg == pkg }
             if (idx >= 0) setSelection(idx)
         }
-        
         val btnDel = Button(this).apply { text = "X"; setTextColor(Color.RED); setBackgroundColor(Color.TRANSPARENT); layoutParams = LinearLayout.LayoutParams(-2, -2) }
         btnDel.setOnClickListener { customAppContainer.removeView(row) }
         row.addView(etKw); row.addView(spinner); row.addView(btnDel)
