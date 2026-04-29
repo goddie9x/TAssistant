@@ -9,6 +9,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.animation.AlphaAnimation
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 class OverlayManager(private val context: Context, private val onCancel: () -> Unit) {
@@ -42,7 +43,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
                     cornerRadius = 80f
                     setStroke(4, Color.parseColor("#33FFFFFF"))
                 }
-                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                val lp = LinearLayout.LayoutParams(-1, -2)
                 lp.setMargins(40, 0, 40, 100)
                 layoutParams = lp
                 setOnClickListener { } 
@@ -50,11 +51,20 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
 
             tvTitle = TextView(context).apply {
                 setTextColor(Color.parseColor("#00E676")); textSize = 12f; setTypeface(null, Typeface.BOLD)
+                setPadding(0, 0, 0, 16)
             }
+
+            val scrollView = ScrollView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(-1, -2)
+                isScrollbarFadingEnabled = false
+            }
+
             tvContent = TextView(context).apply {
-                setTextColor(Color.WHITE); textSize = 22f; setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL))
+                setTextColor(Color.WHITE); textSize = 18f; setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL))
             }
-            card.addView(tvTitle); card.addView(tvContent); root.addView(card)
+
+            scrollView.addView(tvContent)
+            card.addView(tvTitle); card.addView(scrollView); root.addView(card)
             overlayView = root
             try { windowManager.addView(overlayView, params) } catch (e: Exception) {}
         }

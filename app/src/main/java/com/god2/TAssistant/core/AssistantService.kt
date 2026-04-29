@@ -32,13 +32,17 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
 
     fun speak(text: String, onDone: () -> Unit) {
         tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-            override fun onStart(id: String?) {}
-            override fun onDone(id: String?) { onDone() }
-            override fun onError(id: String?) { onDone() }
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) { onDone() }
+            override fun onError(utteranceId: String?) { onDone() }
         })
-        val p = android.os.Bundle()
-        p.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "done")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, p, "done")
+        val params = android.os.Bundle()
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "done")
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "done")
+    }
+
+    fun stopSpeak() {
+        try { tts?.stop() } catch (e: Exception) {}
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
@@ -46,6 +50,7 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
     override fun onUnbind(intent: Intent?): Boolean {
         instance = null
         voiceManager?.destroy()
+        tts?.stop()
         tts?.shutdown()
         return super.onUnbind(intent)
     }
