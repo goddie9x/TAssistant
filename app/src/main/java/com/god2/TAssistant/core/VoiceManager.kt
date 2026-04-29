@@ -1,68 +1,68 @@
 package com.god2.TAssistant.core
 import android.content.Context
 import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
 import org.json.JSONObject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 class VoiceManager(private val context: Context) : org.vosk.android.RecognitionListener {
     private var model: Model? = null
     private var speechService: SpeechService? = null
     private val engine = AssistantEngine(context)
-    private val overlay = OverlayManager(context) { closeOverlay() }
+    private val overlay = OverlayManager(context) { releaseAndStop() }
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val prefs = SharedPrefsHelper(context)
-    private val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-    private var isActive = false
-    private var isProcessing = false
+    private val isActive = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val watchdog = Runnable { closeOverlay() }
 
     init {
-        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, {})
+        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> Log.e("TAssistant", "Model error: ${e.message}") })
     }
 
     private fun startVosk() {
+        if (speechService != null || model == null) return
         try {
-            speechService?.stop(); speechService?.shutdown()
-            model?.let {
-                val rec = Recognizer(it, 16000.0f)
-                speechService = SpeechService(rec, 16000.0f)
-                speechService?.startListening(this)
-            }
-        } catch (e: Exception) { mainHandler.postDelayed({ startVosk() }, 2000) }
+            val rec = Recognizer(model, 16000.0f)
+            speechService = SpeechService(rec, 16000.0f)
+            speechService?.startListening(this)
+            Log.d("TAssistant", "Vosk started successfully")
+        } catch (e: Exception) {
+            Log.e("TAssistant", "Failed to start Vosk: ${e.message}")
+            mainHandler.postDelayed({ startVosk() }, 2000)
+        }
     }
 
     fun forceTrigger() {
-        try { toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150) } catch (e: Exception) {}
-        isActive = true; isProcessing = false
+        if (isActive.get()) return
+        isActive.set(true)
+        audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
-        resetWatchdog(10000)
     }
 
     override fun onResult(hypothesis: String) {
         val text = JSONObject(hypothesis).optString("text").lowercase().trim()
         if (text.isEmpty()) return
-        val wake = prefs.wakeWord.lowercase()
 
-        if (!isActive && text.contains(wake)) { forceTrigger() }
-        else if (isActive && !isProcessing) {
-            isProcessing = true
-            resetWatchdog(15000)
-            mainHandler.post { overlay.showOverlay("Working...", text, true) }
+        if (!isActive.get() && text.contains(prefs.wakeWord.lowercase())) {
+            forceTrigger()
+        } else if (isActive.get()) {
+            stopVoskInternal() // Ngắt mic ngay để tránh lỗi buffer khi bắt đầu xử lý
+            mainHandler.post { overlay.showOverlay("Processing...", text, true) }
+            
             CoroutineScope(Dispatchers.IO).launch {
-                engine.processCommand(text) { resp ->
+                engine.processCommand(text) { resp, correction ->
                     mainHandler.post {
-                        overlay.showOverlay("Assistant", resp, false)
-                        AssistantService.instance?.speak(resp) {
-                            mainHandler.postDelayed({ closeOverlay() }, 1500)
+                        val msg = if (correction != null) "$correction\n$resp" else resp
+                        overlay.showOverlay("Assistant", msg, false)
+                        AssistantService.instance?.speak(msg) {
+                            mainHandler.postDelayed({ releaseAndStop() }, 1500)
                         }
                     }
                 }
@@ -70,27 +70,39 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         }
     }
 
+    private fun stopVoskInternal() {
+        try {
+            speechService?.stop()
+            speechService?.shutdown()
+        } catch (e: Exception) {
+            Log.e("TAssistant", "Stop error: ${e.message}")
+        }
+        speechService = null
+    }
+
+    private fun releaseAndStop() {
+        isActive.set(false)
+        mainHandler.post { overlay.hide() }
+        audioManager.abandonAudioFocus(null)
+        stopVoskInternal()
+        mainHandler.postDelayed({ startVosk() }, 800)
+    }
+
     override fun onPartialResult(h: String) {
         val p = JSONObject(h).optString("partial")
-        if (p.isNotEmpty() && isActive && !isProcessing) {
-            resetWatchdog(10000)
-            mainHandler.post { overlay.updateContent(p) }
-        }
+        if (p.isNotEmpty() && isActive.get()) mainHandler.post { overlay.updateContent(p) }
     }
 
-    private fun resetWatchdog(ms: Long) {
-        mainHandler.removeCallbacks(watchdog)
-        mainHandler.postDelayed(watchdog, ms)
+    override fun onError(e: Exception) {
+        Log.e("TAssistant", "Vosk Error: ${e.message}")
+        releaseAndStop()
     }
 
-    private fun closeOverlay() {
-        isActive = false; isProcessing = false
-        mainHandler.post { overlay.hide() }
-        startVosk()
-    }
-
+    override fun onTimeout() { releaseAndStop() }
     override fun onFinalResult(h: String) {}
-    override fun onError(e: Exception) { closeOverlay() }
-    override fun onTimeout() { closeOverlay() }
-    fun destroy() { speechService?.shutdown(); toneGen.release() }
+
+    fun destroy() {
+        stopVoskInternal()
+        audioManager.abandonAudioFocus(null)
+    }
 }
