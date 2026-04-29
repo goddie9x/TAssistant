@@ -19,7 +19,15 @@
 
         <LinearLayout android:id="@+id/categoryContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="20dp"/>
 
+        <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="15dp" app:cardBackgroundColor="#1A1A1A" android:layout_marginTop="20dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CUSTOM APP COMMANDS" android:textColor="#00E676" android:textSize="12sp" android:textStyle="bold" android:layout_marginBottom="12dp"/>
+                <LinearLayout android:id="@+id/customAppContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
+                <Button android:id="@+id/btnAddCustomApp" android:layout_width="match_parent" android:layout_height="40dp" android:text="+ ADD NEW COMMAND" android:backgroundTint="#222222" android:textColor="#00E676" app:cornerRadius="8dp" android:layout_marginTop="8dp"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="60dp" android:text="SAVE ALL" android:backgroundTint="#00E676" android:textColor="#000000" android:textStyle="bold" android:layout_marginTop="24dp" app:cornerRadius="12dp"/>
-        <Button android:id="@+id/btnTestVoice" android:layout_width="match_parent" android:layout_height="50dp" android:text="WAKE TEST" android:backgroundTint="#1A1A1A" android:textColor="#00E676" app:cornerRadius="12dp" app:strokeWidth="1dp" app:strokeColor="#00E676" android:layout_marginTop="10dp"/>
+        <Button android:id="@+id/btnTestVoice" android:layout_width="match_parent" android:layout_height="50dp" android:text="WAKE TEST" android:backgroundTint="#1A1A1A" android:textColor="#00E676" app:cornerRadius="12dp" app:strokeWidth="1dp" app:strokeColor="#00E676" android:layout_marginTop="10dp" android:layout_marginBottom="30dp"/>
     </LinearLayout>
 </ScrollView>

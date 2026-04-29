@@ -28,7 +28,16 @@ class AssistantEngine(private val context: Context) {
             }
         }
 
-        val cmdKeys = listOf("home", "back", "recent", "flashlight", "lock", "battery", "play", "random", "stop", "next", "prev", "call", "sms", "open", "camera", "alarm", "timer", "search", "map")
+        val customApps = JSONObject(prefs.customAppConfig)
+        for (key in customApps.keys()) {
+            if (raw.contains(key)) {
+                executor.execute("OPEN_APP", customApps.getString(key), "")
+                onResponse("Opening custom app", correction)
+                return
+            }
+        }
+
+        val cmdKeys = listOf("home", "back", "recent", "flashlight", "lock", "battery", "volume", "brightness", "play", "random", "stop", "next", "prev", "call", "sms", "open", "camera", "alarm", "timer", "search", "map")
         var bestKey = "UNKNOWN"
         
         for (key in cmdKeys) {
@@ -40,64 +49,43 @@ class AssistantEngine(private val context: Context) {
         }
 
         when (bestKey) {
-            "search" -> {
-                val query = raw.substringAfter(prefs.getKeyword("search", "search")).trim()
-                executor.execute("SEARCH_WEB", query, "")
-                onResponse("Searching Google for $query", correction)
-            }
+            "search" -> { val query = raw.substringAfter(prefs.getKeyword("search", "search")).trim(); executor.execute("SEARCH_WEB", query, ""); onResponse("Searching Google for $query", correction) }
             "play" -> { executor.execute("PLAY_MUSIC", raw.substringAfter(prefs.getKeyword("play", "play")).trim(), ""); onResponse("Playing music", correction) }
             "random" -> { executor.execute("PLAY_RANDOM", null, ""); onResponse("Playing random music", correction) }
             "open" -> { executor.execute("OPEN_APP", raw.substringAfter(prefs.getKeyword("open", "open")).trim(), ""); onResponse("Opening app", correction) }
             "camera" -> { executor.execute("OPEN_CAMERA", null, ""); onResponse("Opening camera", correction) }
             "flashlight" -> { executor.execute("TOGGLE_FLASHLIGHT", if(raw.contains("off")) "off" else "on", ""); onResponse("Flashlight toggled", correction) }
             "alarm" -> { executor.execute("SET_ALARM", raw, ""); onResponse("Setting alarm", correction) }
-            "timer" -> { 
-                val sec = raw.filter { it.isDigit() }.toIntOrNull() ?: 60
-                executor.execute("SET_TIMER", if (raw.contains("minute")) (sec * 60).toString() else sec.toString(), "")
-                onResponse("Setting timer", correction) 
-            }
+            "timer" -> { val sec = raw.filter { it.isDigit() }.toIntOrNull() ?: 60; executor.execute("SET_TIMER", if (raw.contains("minute")) (sec * 60).toString() else sec.toString(), ""); onResponse("Setting timer", correction) }
             "home" -> { executor.execute("GO_HOME", null, ""); onResponse("Going home", correction) }
             "back" -> { executor.execute("GO_BACK", null, ""); onResponse("Going back", correction) }
             "recent" -> { executor.execute("OPEN_RECENTS", null, ""); onResponse("Showing recents", correction) }
             "lock" -> { executor.execute("LOCK_SCREEN", null, ""); onResponse("Locking screen", correction) }
             "battery" -> { val b = executor.checkBattery(); onResponse(b, correction) }
+            "volume" -> { executor.execute("SET_VOLUME", raw.filter { it.isDigit() }.ifEmpty { "7" }, ""); onResponse("Adjusting volume", correction) }
+            "brightness" -> { executor.execute("SET_BRIGHTNESS", raw.filter { it.isDigit() }.ifEmpty { "128" }, ""); onResponse("Adjusting brightness", correction) }
             "call" -> { executor.execute("CALL", raw.substringAfter(prefs.getKeyword("call", "call")).trim(), ""); onResponse("Calling", correction) }
             "map" -> { executor.execute("NAVIGATE", raw.substringAfter(prefs.getKeyword("map", "navigate to")).trim(), ""); onResponse("Navigating", correction) }
             else -> {
-                if (prefs.apiKey.isNotEmpty()) {
-                    chatWithAI(raw) { aiResp -> onResponse(aiResp, correction) }
-                } else {
-                    onResponse("Command not found and AI is not configured.", correction)
-                }
+                if (prefs.apiKey.isNotEmpty()) { chatWithAI(raw) { aiResp -> onResponse(aiResp, correction) } } 
+                else { onResponse("Command not found and AI is not configured.", correction) }
             }
         }
     }
 
     private fun chatWithAI(prompt: String, callback: (String) -> Unit) {
-        val json = JSONObject()
-        json.put("model", "mistral-small-latest")
-        val messages = JSONArray()
-        messages.put(JSONObject().put("role", "user").put("content", prompt))
+        val json = JSONObject().put("model", "mistral-small-latest")
+        val messages = JSONArray().put(JSONObject().put("role", "user").put("content", prompt))
         json.put("messages", messages)
-
-        val mediaType = MediaType.parse("application/json; charset=utf-8")
-        val body = RequestBody.create(mediaType, json.toString())
-        
-        val request = Request.Builder()
-            .url("https://api.mistral.ai/v1/chat/completions")
-            .addHeader("Authorization", "Bearer ${prefs.apiKey}")
-            .post(body)
-            .build()
-
+        val body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), json.toString())
+        val request = Request.Builder().url("https://api.mistral.ai/v1/chat/completions").addHeader("Authorization", "Bearer ${prefs.apiKey}").post(body).build()
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) { callback("I'm offline or AI connection failed.") }
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body()?.string()
                 if (response.isSuccessful && responseBody != null) {
-                    try {
-                        val aiMsg = JSONObject(responseBody).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
-                        callback(aiMsg)
-                    } catch (e: Exception) { callback("AI busy, try again.") }
+                    try { callback(JSONObject(responseBody).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")) } 
+                    catch (e: Exception) { callback("AI busy, try again.") }
                 } else { callback("AI service error.") }
             }
         })

@@ -9,6 +9,7 @@ class SharedPrefsHelper(context: Context) {
     var apiKey: String get() = prefs.getString("api_key", "") ?: ""; set(v) = prefs.edit().putString("api_key", v).apply()
     var wakeWord: String get() = prefs.getString("wake_word", "hey bro") ?: "hey bro"; set(v) = prefs.edit().putString("wake_word", v).apply()
     var cmdConfig: String get() = prefs.getString("cmd_config", "{}") ?: "{}"; set(v) = prefs.edit().putString("cmd_config", v).apply()
+    var customAppConfig: String get() = prefs.getString("custom_app_config", "{}") ?: "{}"; set(v) = prefs.edit().putString("custom_app_config", v).apply()
 
     fun isEnabled(key: String): Boolean = try { JSONObject(cmdConfig).getJSONObject(key).getBoolean("en") } catch(e: Exception) { true }
     fun getKeyword(key: String, default: String): String = try { JSONObject(cmdConfig).getJSONObject(key).getString("cmd") } catch(e: Exception) { default }
