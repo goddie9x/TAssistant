@@ -23,68 +23,47 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
-            )
+            ).apply { gravity = Gravity.BOTTOM }
 
-            val rootLayout = LinearLayout(context).apply {
+            val root = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.BOTTOM
                 setBackgroundColor(Color.TRANSPARENT)
-                setOnClickListener { onCancel() }
+                setOnTouchListener { _, _ -> onCancel(); true }
             }
 
-            val cardLayout = LinearLayout(context).apply {
+            val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(60, 40, 60, 60)
-                val shape = GradientDrawable().apply {
+                background = GradientDrawable().apply {
                     setColor(Color.parseColor("#F2121212"))
                     cornerRadius = 80f
                     setStroke(4, Color.parseColor("#33FFFFFF"))
                 }
-                background = shape
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(40, 0, 40, 100) }
+                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.setMargins(40, 0, 40, 100)
+                layoutParams = lp
                 setOnClickListener { } 
             }
 
             tvTitle = TextView(context).apply {
-                setTextColor(Color.parseColor("#00E676"))
-                textSize = 12f
-                setTypeface(null, Typeface.BOLD)
-                setPadding(0, 0, 0, 8)
+                setTextColor(Color.parseColor("#00E676")); textSize = 12f; setTypeface(null, Typeface.BOLD)
             }
-
             tvContent = TextView(context).apply {
-                setTextColor(Color.WHITE)
-                textSize = 22f
-                setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL))
+                setTextColor(Color.WHITE); textSize = 22f; setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL))
             }
-
-            cardLayout.addView(tvTitle)
-            cardLayout.addView(tvContent)
-            rootLayout.addView(cardLayout)
-            overlayView = rootLayout
-            windowManager.addView(overlayView, params)
+            card.addView(tvTitle); card.addView(tvContent); root.addView(card)
+            overlayView = root
+            try { windowManager.addView(overlayView, params) } catch (e: Exception) {}
         }
-
         tvTitle?.text = title.uppercase()
         tvContent?.text = content
-        
         if (isProcessing) {
-            tvContent?.setTextColor(Color.parseColor("#BBBBBB"))
-            val anim = AlphaAnimation(0.5f, 1.0f).apply {
-                duration = 500
-                repeatCount = AlphaAnimation.INFINITE
-                repeatMode = AlphaAnimation.REVERSE
-            }
+            val anim = AlphaAnimation(0.5f, 1.0f).apply { duration = 500; repeatCount = -1; repeatMode = 2 }
             tvContent?.startAnimation(anim)
-        } else {
-            tvContent?.setTextColor(Color.WHITE)
-            tvContent?.clearAnimation()
-        }
+        } else { tvContent?.clearAnimation() }
     }
 
     fun updateContent(content: String) {
@@ -92,9 +71,6 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
     }
 
     fun hide() {
-        overlayView?.let {
-            windowManager.removeView(it)
-            overlayView = null
-        }
+        overlayView?.let { try { windowManager.removeView(it) } catch (e: Exception) {}; overlayView = null }
     }
 }
