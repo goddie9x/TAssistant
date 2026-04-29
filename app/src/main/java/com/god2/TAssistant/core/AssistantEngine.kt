@@ -29,7 +29,6 @@ class AssistantEngine(private val context: Context) {
         var raw = text.lowercase().trim()
         var correction: String? = null
 
-        // 1. CHUYỂN CHỮ THÀNH SỐ TRƯỚC KHI XỬ LÝ
         numMap.forEach { (word, digit) -> raw = raw.replace(Regex("\\b$word\\b"), digit) }
 
         commonFixes.forEach { (wrong, right) ->
@@ -84,7 +83,6 @@ class AssistantEngine(private val context: Context) {
     }
 
     private fun extractTime(text: String): Pair<Int, Int> {
-        // Regex bắt: số(1-2 chữ số) + (am/pm/h/giờ/phút) + số(2 chữ số)
         val m = Pattern.compile("(\\d{1,2})\\s*(am|pm|h|:|giờ|phút)?\\s*(\\d{1,2})?").matcher(text)
         if (m.find()) {
             var h = m.group(1).toInt()

@@ -45,31 +45,49 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
     }
 
+    override fun onPartialResult(h: String) {
+        val p = JSONObject(h).optString("partial").lowercase().trim()
+        if (p.isEmpty()) return
+
+        val wake = prefs.wakeWord.lowercase()
+
+        // Bắt Wake Word thời gian thực
+        if (!isVoiceActive && p.contains(wake)) {
+            isVoiceActive = true
+            AssistantService.instance?.stopSpeak()
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
+        }
+
+        if (isVoiceActive) {
+            // Vừa hiện vừa lắng nghe
+            val displayStr = if (p.contains(wake)) p.substringAfter(wake).trim() else p
+            if (displayStr.isNotEmpty()) {
+                mainHandler.post { overlay.updateContent(displayStr) }
+            }
+        }
+    }
+
     override fun onResult(hypothesis: String) {
         val text = JSONObject(hypothesis).optString("text").lowercase().trim()
         if (text.isEmpty()) return
 
         val wake = prefs.wakeWord.lowercase()
 
-        if (!isVoiceActive) {
-            if (text.contains(wake)) {
-                // Tách đoạn văn bản liền sau Wake Word (nếu có)
-                val cmd = text.substringAfter(wake).trim()
-                isVoiceActive = true
-                AssistantService.instance?.stopSpeak()
-                audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                
-                if (cmd.isNotEmpty()) {
-                    // Người dùng nói liền 1 hơi (vd: "hey bro open youtube")
-                    processCommandWithEdit(cmd)
-                } else {
-                    // Người dùng chỉ gọi "hey bro" rồi dừng
-                    mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
-                }
+        if (!isVoiceActive && text.contains(wake)) {
+            isVoiceActive = true
+            AssistantService.instance?.stopSpeak()
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        }
+
+        if (isVoiceActive) {
+            val cmd = if (text.contains(wake)) text.substringAfter(wake).trim() else text
+            
+            if (cmd.isNotEmpty()) {
+                processCommandWithEdit(cmd)
+            } else {
+                mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
             }
-        } else {
-            // Đang lắng nghe thì lấy toàn bộ text làm lệnh
-            processCommandWithEdit(text)
         }
     }
 
@@ -106,11 +124,6 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         audioManager.abandonAudioFocus(null)
         stopVoskInternal()
         mainHandler.postDelayed({ startVosk() }, 800)
-    }
-
-    override fun onPartialResult(h: String) {
-        val p = JSONObject(h).optString("partial")
-        if (p.isNotEmpty() && isVoiceActive) mainHandler.post { overlay.updateContent(p) }
     }
 
     override fun onError(e: Exception) { releaseAndStop() }

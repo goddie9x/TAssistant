@@ -52,7 +52,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             val lp = LinearLayout.LayoutParams(-1, -2)
             lp.setMargins(40, 0, 40, 100)
             layoutParams = lp
-            setOnClickListener { } // Chặn click xuyên thủng
+            setOnClickListener { }
         }
 
         tvTitle = TextView(context).apply { setTextColor(Color.parseColor("#00E676")); textSize = 12f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 0, 16) }
@@ -101,7 +101,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
         
         etCommand?.setText(cmd)
         
-        var ticks = 5
+        var ticks = 2 
         val executeFn = {
             autoHandler.removeCallbacksAndMessages(null)
             showOverlay("PROCESSING...", "Executing...", true)
@@ -110,7 +110,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
 
         btnConfirm?.setOnClickListener { executeFn() }
         etCommand?.setOnTouchListener { _, _ -> 
-            autoHandler.removeCallbacksAndMessages(null) // Chạm vào là hủy đếm ngược
+            autoHandler.removeCallbacksAndMessages(null)
             tvCountdown?.text = "Auto-execute paused. Edit and press Execute."
             false 
         }
@@ -120,7 +120,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
                 if (ticks > 0) {
                     tvCountdown?.text = "Auto-executing in $ticks s..."
                     ticks--
-                    autoHandler.postDelayed(this, 1000)
+                    autoHandler.postDelayed(this, 800) 
                 } else {
                     executeFn()
                 }
