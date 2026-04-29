@@ -1,0 +1,31 @@
+# Gradle files
+.gradle/
+build/
+
+# Kotlin/Java
+*.class
+*.jar
+*.jks
+*.bin
+
+# Android specific
+local.properties
+.externalNativeBuild
+.cxx
+captures/
+*.apk
+*.ap_
+*.dex
+
+# VS Code specific
+.vscode/
+.history/
+*.code-workspace
+
+# OS specific
+Thumbs.db
+.DS_Store
+.bak
+
+# Log files
+*.log

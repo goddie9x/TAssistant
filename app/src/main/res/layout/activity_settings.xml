@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mistral API Key:" android:textStyle="bold"/>
+        <EditText android:id="@+id/etApiKey" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textPassword"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AI Model:" android:textStyle="bold" android:layout_marginTop="10dp"/>
+        <EditText android:id="@+id/etModel" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Từ khóa gọi (Wake word):" android:textStyle="bold" android:layout_marginTop="10dp"/>
+        <EditText android:id="@+id/etWakeWord" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Switch android:id="@+id/swOpenApp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Quyền mở ứng dụng" android:layout_marginTop="20dp"/>
+        <Switch android:id="@+id/swSetAlarm" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Quyền đặt báo thức" android:layout_marginTop="10dp"/>
+        <Switch android:id="@+id/swCalendar" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Quyền đặt lịch" android:layout_marginTop="10dp"/>
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Lưu Cài Đặt" android:layout_marginTop="30dp"/>
+    </LinearLayout>
+</ScrollView>
