@@ -1,10 +1,15 @@
 package com.god2.TAssistant.core
 import android.content.Context
 import android.util.Log
+import okhttp3.*
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
 
 class AssistantEngine(private val context: Context) {
     private val prefs = SharedPrefsHelper(context)
     private val executor = ActionExecutor(context, prefs)
+    private val client = OkHttpClient()
 
     private val commonFixes = mapOf(
         "you tube" to "youtube", "face book" to "facebook", "tik tok" to "tiktok",
@@ -34,23 +39,67 @@ class AssistantEngine(private val context: Context) {
             }
         }
 
-        var action = "UNKNOWN"; var target: String? = null; var msg = "Executing..."
-
         when (bestKey) {
-            "play" -> { action = "PLAY_MUSIC"; target = raw.substringAfter(prefs.getKeyword("play", "play")).trim(); msg = "Playing music" }
-            "open" -> { action = "OPEN_APP"; target = raw.substringAfter(prefs.getKeyword("open", "open")).trim(); msg = "Opening app" }
-            "flashlight" -> { action = "TOGGLE_FLASHLIGHT"; target = if(raw.contains("off")) "off" else "on"; msg = "Flashlight updated" }
-            "alarm" -> { action = "SET_ALARM"; target = raw; msg = "Alarm set" }
-            "timer" -> { action = "SET_TIMER"; target = raw; msg = "Timer started" }
-            "search" -> { action = "SEARCH"; target = raw.substringAfter(prefs.getKeyword("search", "search")).trim(); msg = "Searching" }
-            "home" -> { action = "GO_HOME"; msg = "Going home" }
-            "back" -> { action = "GO_BACK"; msg = "Going back" }
-            "recent" -> { action = "OPEN_RECENTS"; msg = "Showing recents" }
-            "call" -> { action = "CALL"; target = raw.substringAfter(prefs.getKeyword("call", "call")).trim(); msg = "Calling" }
-            else -> { action = "CHAT"; msg = "I'm not sure, but I heard: $raw" }
+            "search" -> {
+                val query = raw.substringAfter(prefs.getKeyword("search", "search")).trim()
+                executor.execute("SEARCH_WEB", query, "Searching for $query")
+                onResponse("Searching Google for $query", correction)
+            }
+            "play" -> { executor.execute("PLAY_MUSIC", raw.substringAfter(prefs.getKeyword("play", "play")).trim(), ""); onResponse("Playing music", correction) }
+            "open" -> { executor.execute("OPEN_APP", raw.substringAfter(prefs.getKeyword("open", "open")).trim(), ""); onResponse("Opening app", correction) }
+            "flashlight" -> { executor.execute("TOGGLE_FLASHLIGHT", if(raw.contains("off")) "off" else "on", ""); onResponse("Flashlight toggled", correction) }
+            "alarm" -> { executor.execute("SET_ALARM", raw, ""); onResponse("Setting alarm", correction) }
+            "timer" -> { executor.execute("SET_TIMER", raw, ""); onResponse("Setting timer", correction) }
+            "home" -> { executor.execute("GO_HOME", null, ""); onResponse("Going home", correction) }
+            "call" -> { executor.execute("CALL", raw.substringAfter(prefs.getKeyword("call", "call")).trim(), ""); onResponse("Calling", correction) }
+            "map" -> { executor.execute("NAVIGATE", raw.substringAfter(prefs.getKeyword("map", "navigate to")).trim(), ""); onResponse("Navigating", correction) }
+            else -> {
+                if (prefs.apiKey.isNotEmpty()) {
+                    chatWithAI(raw) { aiResp -> onResponse(aiResp, correction) }
+                } else {
+                    onResponse("Command not found and AI is not configured.", correction)
+                }
+            }
         }
+    }
 
-        executor.execute(action, target, msg)
-        onResponse(msg, correction)
+    private fun chatWithAI(prompt: String, callback: (String) -> Unit) {
+        val json = JSONObject()
+        json.put("model", "mistral-small-latest")
+        val messages = JSONArray()
+        messages.put(JSONObject().put("role", "user").put("content", prompt))
+        json.put("messages", messages)
+
+        val mediaType = MediaType.parse("application/json; charset=utf-8")
+        val body = RequestBody.create(mediaType, json.toString())
+        
+        val request = Request.Builder()
+            .url("https://api.mistral.ai/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${prefs.apiKey}")
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback("I'm offline or AI connection failed.")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body()?.string()
+                if (response.isSuccessful && responseBody != null) {
+                    try {
+                        val aiMsg = JSONObject(responseBody)
+                            .getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                        callback(aiMsg)
+                    } catch (e: Exception) {
+                        callback("AI busy, try again.")
+                    }
+                } else {
+                    callback("AI service error.")
+                }
+            }
+        })
     }
 }
