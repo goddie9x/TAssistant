@@ -1,6 +1,5 @@
 package com.god2.TAssistant.core
 import android.content.Context
-import android.util.Log
 import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,7 +13,8 @@ class AssistantEngine(private val context: Context) {
     private val commonFixes = mapOf(
         "you tube" to "youtube", "face book" to "facebook", "tik tok" to "tiktok",
         "a lam" to "alarm", "ti mer" to "timer", "flash light" to "flashlight",
-        "o pen" to "open", "sea rch" to "search", "mu sic" to "music"
+        "o pen" to "open", "sea rch" to "search", "mu sic" to "music",
+        "ran dom" to "random", "bat te ry" to "battery", "ca me ra" to "camera"
     )
 
     suspend fun processCommand(text: String, onResponse: (String, String?) -> Unit) {
@@ -28,7 +28,7 @@ class AssistantEngine(private val context: Context) {
             }
         }
 
-        val cmdKeys = listOf("home", "back", "recent", "flashlight", "volume", "brightness", "play", "stop", "next", "prev", "call", "sms", "open", "alarm", "timer", "search", "map")
+        val cmdKeys = listOf("home", "back", "recent", "flashlight", "lock", "battery", "play", "random", "stop", "next", "prev", "call", "sms", "open", "camera", "alarm", "timer", "search", "map")
         var bestKey = "UNKNOWN"
         
         for (key in cmdKeys) {
@@ -42,15 +42,25 @@ class AssistantEngine(private val context: Context) {
         when (bestKey) {
             "search" -> {
                 val query = raw.substringAfter(prefs.getKeyword("search", "search")).trim()
-                executor.execute("SEARCH_WEB", query, "Searching for $query")
+                executor.execute("SEARCH_WEB", query, "")
                 onResponse("Searching Google for $query", correction)
             }
             "play" -> { executor.execute("PLAY_MUSIC", raw.substringAfter(prefs.getKeyword("play", "play")).trim(), ""); onResponse("Playing music", correction) }
+            "random" -> { executor.execute("PLAY_RANDOM", null, ""); onResponse("Playing random music", correction) }
             "open" -> { executor.execute("OPEN_APP", raw.substringAfter(prefs.getKeyword("open", "open")).trim(), ""); onResponse("Opening app", correction) }
+            "camera" -> { executor.execute("OPEN_CAMERA", null, ""); onResponse("Opening camera", correction) }
             "flashlight" -> { executor.execute("TOGGLE_FLASHLIGHT", if(raw.contains("off")) "off" else "on", ""); onResponse("Flashlight toggled", correction) }
             "alarm" -> { executor.execute("SET_ALARM", raw, ""); onResponse("Setting alarm", correction) }
-            "timer" -> { executor.execute("SET_TIMER", raw, ""); onResponse("Setting timer", correction) }
+            "timer" -> { 
+                val sec = raw.filter { it.isDigit() }.toIntOrNull() ?: 60
+                executor.execute("SET_TIMER", if (raw.contains("minute")) (sec * 60).toString() else sec.toString(), "")
+                onResponse("Setting timer", correction) 
+            }
             "home" -> { executor.execute("GO_HOME", null, ""); onResponse("Going home", correction) }
+            "back" -> { executor.execute("GO_BACK", null, ""); onResponse("Going back", correction) }
+            "recent" -> { executor.execute("OPEN_RECENTS", null, ""); onResponse("Showing recents", correction) }
+            "lock" -> { executor.execute("LOCK_SCREEN", null, ""); onResponse("Locking screen", correction) }
+            "battery" -> { val b = executor.checkBattery(); onResponse(b, correction) }
             "call" -> { executor.execute("CALL", raw.substringAfter(prefs.getKeyword("call", "call")).trim(), ""); onResponse("Calling", correction) }
             "map" -> { executor.execute("NAVIGATE", raw.substringAfter(prefs.getKeyword("map", "navigate to")).trim(), ""); onResponse("Navigating", correction) }
             else -> {
@@ -80,25 +90,15 @@ class AssistantEngine(private val context: Context) {
             .build()
 
         client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback("I'm offline or AI connection failed.")
-            }
+            override fun onFailure(call: Call, e: IOException) { callback("I'm offline or AI connection failed.") }
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body()?.string()
                 if (response.isSuccessful && responseBody != null) {
                     try {
-                        val aiMsg = JSONObject(responseBody)
-                            .getJSONArray("choices")
-                            .getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content")
+                        val aiMsg = JSONObject(responseBody).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
                         callback(aiMsg)
-                    } catch (e: Exception) {
-                        callback("AI busy, try again.")
-                    }
-                } else {
-                    callback("AI service error.")
-                }
+                    } catch (e: Exception) { callback("AI busy, try again.") }
+                } else { callback("AI service error.") }
             }
         })
     }

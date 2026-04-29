@@ -29,10 +29,10 @@ class MainActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.categoryContainer)
         
-        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "flashlight" to "flashlight", "volume" to "volume", "brightness" to "brightness")
-        val mediaCmds = listOf("play" to "play", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
+        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight" to "flashlight", "battery" to "battery")
+        val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open")
-        val utilCmds = listOf("alarm" to "set alarm", "timer" to "set timer", "search" to "search", "map" to "navigate to")
+        val utilCmds = listOf("alarm" to "set alarm", "timer" to "set timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
         addCategory(container, "SYSTEM CONTROL", systemCmds)
         addCategory(container, "MEDIA", mediaCmds)
