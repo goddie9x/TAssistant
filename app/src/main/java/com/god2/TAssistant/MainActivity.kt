@@ -38,12 +38,19 @@ class MainActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.categoryContainer)
         
-        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight" to "flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi" to "wifi", "bluetooth" to "bluetooth", "data" to "data")
+        // Tách biệt On/Off cho các lệnh Toggle
+        val systemCmds = listOf(
+            "home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", 
+            "flashlight_on" to "flashlight on", "flashlight_off" to "flashlight off", 
+            "battery" to "battery", "volume" to "volume", "brightness" to "brightness",
+            "wifi_on" to "wifi on", "wifi_off" to "wifi off", 
+            "bluetooth_on" to "bluetooth on", "bluetooth_off" to "bluetooth off", "data" to "open data"
+        )
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open")
         val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "cancel alarm", "timer" to "set timer", "cancel_timer" to "cancel timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
-        addCategory(container, "SYSTEM CONTROL", systemCmds)
+        addCategory(container, "SYSTEM CONTROL (ON/OFF SEPARATED)", systemCmds)
         addCategory(container, "MEDIA", mediaCmds)
         addCategory(container, "COMMUNICATION", commCmds)
         addCategory(container, "UTILITIES", utilCmds)
@@ -62,7 +69,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             val usedKeywords = mutableSetOf<String>()
             var hasDuplicate = false
-
             prefs.apiKey = findViewById<EditText>(R.id.etApiKey).text.toString()
             prefs.wakeWord = findViewById<EditText>(R.id.etWakeWord).text.toString().trim().lowercase()
             
@@ -77,7 +83,6 @@ class MainActivity : AppCompatActivity() {
                 val row = customAppContainer.getChildAt(i) as LinearLayout
                 val kw = (row.getChildAt(0) as EditText).text.toString().trim().lowercase()
                 val pkgInfo = (row.getChildAt(1) as Spinner).selectedItem as? AppInfo
-                
                 if (kw.isNotEmpty() && pkgInfo != null) {
                     if (!usedKeywords.add(kw)) hasDuplicate = true
                     else newCustomApps.put(kw, pkgInfo.pkg)
@@ -85,10 +90,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (hasDuplicate) {
-                Toast.makeText(this, "⚠️ LỖI: Có lệnh bị trùng từ khóa! Hãy sửa lại.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "⚠️ LỖI: Có từ khóa bị trùng! Hãy kiểm tra lại.", Toast.LENGTH_LONG).show()
             } else {
                 prefs.customAppConfig = newCustomApps.toString()
-                Toast.makeText(this, "All Settings Saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Settings Saved Successfully!", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -119,7 +124,7 @@ class MainActivity : AppCompatActivity() {
         items.forEach { (key, default) ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,10,0,20) }
             val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val tv = TextView(this).apply { text = key.uppercase(); setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0,-2,1f) }
+            val tv = TextView(this).apply { text = key.replace("_", " ").uppercase(); setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0,-2,1f) }
             val sw = Switch(this).apply { isChecked = prefs.isEnabled(key) }
             val et = EditText(this).apply { setText(prefs.getKeyword(key, default)); setTextColor(Color.parseColor("#00E676")); setBackgroundColor(Color.TRANSPARENT); textSize = 14f }
             top.addView(tv); top.addView(sw); row.addView(top); row.addView(et)

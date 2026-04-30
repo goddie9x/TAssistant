@@ -2,6 +2,7 @@ package com.god2.TAssistant.core
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
@@ -15,40 +16,76 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
     fun execute(action: String, target: String?, message: String) {
         val flags = Intent.FLAG_ACTIVITY_NEW_TASK
         when (action) {
+            "TOGGLE_FLASHLIGHT" -> {
+                val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                try {
+                    for (id in cm.cameraIdList) {
+                        val chars = cm.getCameraCharacteristics(id)
+                        val hasFlash = chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) ?: false
+                        if (hasFlash) {
+                            cm.setTorchMode(id, target == "on")
+                            break
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
             "SET_ALARM" -> {
                 val parts = target?.split(":")
                 val h = parts?.get(0)?.toIntOrNull() ?: 7
                 val m = parts?.get(1)?.toIntOrNull() ?: 0
-                val i = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                context.startActivity(Intent(AlarmClock.ACTION_SET_ALARM).apply {
                     putExtra(AlarmClock.EXTRA_HOUR, h)
                     putExtra(AlarmClock.EXTRA_MINUTES, m)
                     putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                     addFlags(flags)
-                }
-                context.startActivity(i)
+                })
             }
             "CANCEL_ALARM" -> {
-                val i = Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
+                context.startActivity(Intent(AlarmClock.ACTION_DISMISS_ALARM).apply {
                     putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all")
                     addFlags(flags)
-                }
-                context.startActivity(i)
+                })
             }
             "SET_TIMER" -> {
                 val sec = target?.toIntOrNull() ?: 60
-                val i = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                context.startActivity(Intent(AlarmClock.ACTION_SET_TIMER).apply {
                     putExtra(AlarmClock.EXTRA_LENGTH, sec)
                     putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                     addFlags(flags)
-                }
-                context.startActivity(i)
+                })
             }
             "CANCEL_TIMER" -> {
-                val i = Intent(AlarmClock.ACTION_DISMISS_TIMER).apply {
+                context.startActivity(Intent(AlarmClock.ACTION_DISMISS_TIMER).apply {
                     putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all")
                     addFlags(flags)
+                } )
+            }
+            "PLAY_MUSIC", "PLAY_RANDOM" -> {
+                val query = if (action == "PLAY_RANDOM") "" else (target ?: "")
+                val intent = if (query.isEmpty()) {
+                    Intent(Intent.ACTION_VIEW).apply { setDataAndType(Uri.EMPTY, "audio/*") }
+                } else {
+                    Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+                        putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+                        putExtra(android.app.SearchManager.QUERY, query)
+                    }
                 }
-                context.startActivity(i)
+                intent.addFlags(flags)
+                val pm = context.packageManager
+                val resolveInfos = pm.queryIntentActivities(intent, 0)
+                if (resolveInfos.isNotEmpty()) {
+                    val musicApp = resolveInfos.find { !it.activityInfo.packageName.contains("spotify") } ?: resolveInfos[0]
+                    intent.setPackage(musicApp.activityInfo.packageName)
+                }
+                try { context.startActivity(intent) } catch (e: Exception) {
+                    intent.setPackage(null)
+                    context.startActivity(intent)
+                }
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+                    am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+                }, 3500)
             }
             "TOGGLE_WIFI" -> {
                 if (Build.VERSION.SDK_INT >= 29) {
@@ -64,6 +101,7 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
             }
             "SEARCH_WEB" -> { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$target")).addFlags(flags)) }
             "GO_HOME" -> AssistantService.instance?.performGlobal(AccessibilityService.GLOBAL_ACTION_HOME)
+            "LOCK_SCREEN" -> { if (Build.VERSION.SDK_INT >= 28) AssistantService.instance?.performGlobal(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN) }
             "OPEN_APP" -> {
                 val pm = context.packageManager
                 val clean = target?.replace(" ", "")?.lowercase() ?: ""

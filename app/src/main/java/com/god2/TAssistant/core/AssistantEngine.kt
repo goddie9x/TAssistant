@@ -20,9 +20,7 @@ class AssistantEngine(private val context: Context) {
     private val numMap = mapOf(
         "zero" to "0", "one" to "1", "two" to "2", "three" to "3", "four" to "4", "five" to "5",
         "six" to "6", "seven" to "7", "eight" to "8", "nine" to "9", "ten" to "10",
-        "eleven" to "11", "twelve" to "12", "thirteen" to "13", "fourteen" to "14", "fifteen" to "15",
-        "sixteen" to "16", "seventeen" to "17", "eighteen" to "18", "nineteen" to "19", "twenty" to "20",
-        "thirty" to "30", "forty" to "40", "fifty" to "50", "sixty" to "60"
+        "twenty" to "20", "thirty" to "30", "forty" to "40", "fifty" to "50", "sixty" to "60"
     )
 
     suspend fun processCommand(text: String, onResponse: (String, String?) -> Unit) {
@@ -30,11 +28,16 @@ class AssistantEngine(private val context: Context) {
         var correction: String? = null
 
         numMap.forEach { (word, digit) -> raw = raw.replace(Regex("\\b$word\\b"), digit) }
+        commonFixes.forEach { (wrong, right) -> if (raw.contains(wrong)) { raw = raw.replace(wrong, right); correction = "Fuzzy match: $raw" } }
 
-        commonFixes.forEach { (wrong, right) ->
-            if (raw.contains(wrong)) {
-                raw = raw.replace(wrong, right)
-                correction = "Fuzzy match: $raw"
+        val customApps = JSONObject(prefs.customAppConfig)
+        val keys = customApps.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (Regex("\\b$key\\b").containsMatchIn(raw)) {
+                executor.execute("OPEN_APP", customApps.getString(key), "")
+                onResponse("Opening custom app", correction)
+                return
             }
         }
 
@@ -60,8 +63,7 @@ class AssistantEngine(private val context: Context) {
             "alarm" -> {
                 val time = extractTime(raw)
                 executor.execute("SET_ALARM", "${time.first}:${time.second}", "")
-                val displayTime = String.format("%02d:%02d", time.first, time.second)
-                onResponse("Alarm set for $displayTime", correction)
+                onResponse("Alarm set for ${String.format("%02d:%02d", time.first, time.second)}", correction)
             }
             "timer" -> { 
                 val digits = raw.filter { it.isDigit() }
@@ -72,8 +74,13 @@ class AssistantEngine(private val context: Context) {
             }
             "search" -> { val query = raw.substringAfter(prefs.getKeyword("search", "search")).trim(); executor.execute("SEARCH_WEB", query, ""); onResponse("Searching Google", correction) }
             "play" -> { executor.execute("PLAY_MUSIC", raw.substringAfter(prefs.getKeyword("play", "play")).trim(), ""); onResponse("Playing music", correction) }
+            "random" -> { executor.execute("PLAY_RANDOM", null, ""); onResponse("Playing random music", correction) }
             "open" -> { executor.execute("OPEN_APP", raw.substringAfter(prefs.getKeyword("open", "open")).trim(), ""); onResponse("Opening app", correction) }
             "flashlight" -> { executor.execute("TOGGLE_FLASHLIGHT", if(raw.contains("off")) "off" else "on", ""); onResponse("Flashlight toggled", correction) }
+            "lock" -> { executor.execute("LOCK_SCREEN", null, ""); onResponse("Screen locked", correction) }
+            "battery" -> { onResponse(executor.checkBattery(), correction) }
+            "wifi" -> { executor.execute("TOGGLE_WIFI", if(raw.contains("off")) "off" else "on", ""); onResponse("WiFi updated", correction) }
+            "bluetooth" -> { executor.execute("TOGGLE_BLUETOOTH", if(raw.contains("off")) "off" else "on", ""); onResponse("Bluetooth updated", correction) }
             "call" -> { executor.execute("CALL", raw.substringAfter(prefs.getKeyword("call", "call")).trim(), ""); onResponse("Calling", correction) }
             else -> {
                 if (prefs.apiKey.isNotEmpty()) { chatWithAI(raw) { onResponse(it, correction) } } 
@@ -88,10 +95,8 @@ class AssistantEngine(private val context: Context) {
             var h = m.group(1).toInt()
             val marker = m.group(2) ?: ""
             val min = m.group(3)?.toInt() ?: 0
-            
             if (marker.contains("pm") && h < 12) h += 12
             if (marker.contains("am") && h == 12) h = 0
-            
             return Pair(h.coerceIn(0, 23), min.coerceIn(0, 59))
         }
         return Pair(7, 0)
