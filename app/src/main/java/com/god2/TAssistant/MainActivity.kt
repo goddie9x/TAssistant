@@ -17,7 +17,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.god2.TAssistant.core.*
 import org.json.JSONObject
-import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPrefsHelper
@@ -45,13 +44,32 @@ class MainActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.categoryContainer)
         val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
-        val voiceContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
-        val tvVoice = TextView(this).apply { text = "ASSISTANT VOICE: "; setTextColor(Color.parseColor("#00E676")); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 13f; setTypeface(null, android.graphics.Typeface.BOLD) }
-        val spinnerVoice = Spinner(this).apply { layoutParams = LinearLayout.LayoutParams(0, -2, 2.5f) }
         
+        val voiceContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 20) }
+        val tvVoice = TextView(this).apply { text = "VOICE: "; setTextColor(Color.parseColor("#00E676")); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 13f; setTypeface(null, android.graphics.Typeface.BOLD) }
+        val spinnerVoice = Spinner(this).apply { layoutParams = LinearLayout.LayoutParams(0, -2, 2.5f) }
         voiceContainer.addView(tvVoice)
         voiceContainer.addView(spinnerVoice)
         container.addView(voiceContainer, 0) 
+
+        val speedContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40); gravity = android.view.Gravity.CENTER_VERTICAL }
+        val tvSpeed = TextView(this).apply { setTextColor(Color.parseColor("#00E676")); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 13f; setTypeface(null, android.graphics.Typeface.BOLD) }
+        val sbSpeed = SeekBar(this).apply { layoutParams = LinearLayout.LayoutParams(0, -2, 2.5f); max = 20; progress = (sp.getFloat("tts_speed", 1.0f) * 10).toInt() }
+        tvSpeed.text = "SPEED: ${sbSpeed.progress / 10f}x"
+
+        sbSpeed.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val p = if (progress < 1) 1 else progress
+                val rate = p / 10f
+                tvSpeed.text = "SPEED: ${rate}x"
+                sp.edit().putFloat("tts_speed", rate).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        speedContainer.addView(tvSpeed)
+        speedContainer.addView(sbSpeed)
+        container.addView(speedContainer, 1)
 
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -91,7 +109,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ĐÃ TÁCH BIỆT RÕ RÀNG ON VÀ OFF
         val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight_on" to "turn on flashlight", "flashlight_off" to "turn off flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi_on" to "turn on wifi", "wifi_off" to "turn off wifi", "bluetooth_on" to "turn on bluetooth", "bluetooth_off" to "turn off bluetooth", "data_on" to "turn on data", "data_off" to "turn off data")
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open app")

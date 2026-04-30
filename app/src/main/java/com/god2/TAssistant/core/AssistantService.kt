@@ -1,5 +1,4 @@
 package com.god2.TAssistant.core
-
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
@@ -23,20 +22,15 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
         tts = TextToSpeech(this, this)
         voiceManager = VoiceManager(this)
         
-        // Kích hoạt lắng nghe cửa sổ để tự động click
         val info = AccessibilityServiceInfo().apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
         }
         serviceInfo = info
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.getDefault()
-        }
-    }
+    override fun onInit(status: Int) {}
 
     fun forceListen() { voiceManager?.forceTrigger() }
     
@@ -45,10 +39,16 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
     fun speak(text: String, onDone: (() -> Unit)? = null) {
         try {
             val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
+            val rate = sp.getFloat("tts_speed", 1.0f)
+            tts?.setSpeechRate(rate)
+
             val vName = sp.getString("tts_voice", "")
             if (!vName.isNullOrEmpty()) {
-                val targetVoice = tts?.voices?.find { it.name == vName }
-                if (targetVoice != null) { tts?.voice = targetVoice }
+                val targetVoice = tts?.voices?.firstOrNull { it.name == vName }
+                if (targetVoice != null) { 
+                    tts?.voice = targetVoice
+                    tts?.language = targetVoice.locale 
+                }
             }
         } catch (e: Exception) {}
 
@@ -66,16 +66,14 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
 
     fun stopSpeak() { tts?.stop() }
 
-    // --- BỘ NÃO TỰ ĐỘNG CLICK (AUTO-CLICKER) ---
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        
         try {
             val root = rootInActiveWindow ?: return
-            
-            // Tìm chữ "Bluetooth" để xác nhận đúng là hộp thoại Bluetooth
             val btNodes = root.findAccessibilityNodeInfosByText("Bluetooth")
-            if (btNodes.isNotEmpty()) {
+            val wifiNodes = root.findAccessibilityNodeInfosByText("Wi-Fi")
+            
+            if (btNodes.isNotEmpty() || wifiNodes.isNotEmpty()) {
                 val allows = ArrayList<AccessibilityNodeInfo>()
                 allows.addAll(root.findAccessibilityNodeInfosByText("Allow"))
                 allows.addAll(root.findAccessibilityNodeInfosByText("Turn on"))
