@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var customAppContainer: LinearLayout
     private val installedApps = mutableListOf<AppInfo>()
     private var tts: TextToSpeech? = null
+    private var hasAutoShownDisclosure = false
 
     data class CommandUI(val key: String, val sw: Switch, val et: EditText)
     data class AppInfo(val name: String, val pkg: String) { override fun toString() = name }
@@ -114,9 +115,7 @@ class MainActivity : AppCompatActivity() {
         val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight_on" to "turn on flashlight", "flashlight_off" to "turn off flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi_on" to "turn on wifi", "wifi_off" to "turn off wifi", "bluetooth_on" to "turn on bluetooth", "bluetooth_off" to "turn off bluetooth", "data_on" to "turn on data", "data_off" to "turn off data")
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open app")
-        
-        // ĐÃ ĐỔI TỪ KHÓA MẶC ĐỊNH SANG "CLEAR ALARM" / "CLEAR TIMER"
-        val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "clear alarm", "timer" to "set timer", "cancel_timer" to "clear timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
+        val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "cancel alarm", "timer" to "set timer", "cancel_timer" to "cancel timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
         addCategory(container, "SYSTEM CONTROL", systemCmds)
         addCategory(container, "MEDIA", mediaCmds)
@@ -136,16 +135,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnPermOverlay).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
         
-        findViewById<Button>(R.id.btnPermAccessibility).setOnClickListener { 
-            AlertDialog.Builder(this)
-                .setTitle("Accessibility Service Disclosure")
-                .setMessage("TAssistant uses the AccessibilityService API to provide hands-free voice assistance. \n\nWe use this service specifically to:\n1. Automate clicking 'Allow/Turn on' on system confirmation dialogs (like Bluetooth and Wi-Fi toggles) when you request it via voice.\n2. Perform global navigation actions such as going Home or Locking the screen via voice commands.\n\nWe DO NOT use this service to collect, store, or share any of your personal or sensitive data.")
-                .setPositiveButton("I AGREE") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-                .setNegativeButton("CANCEL", null)
-                .setCancelable(false)
-                .show()
-        }
-
+        findViewById<Button>(R.id.btnPermAccessibility).setOnClickListener { showAccDisclosureDialog() }
         findViewById<Button>(R.id.btnPermWriteSettings).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))) }
         findViewById<Button>(R.id.btnTestVoice).setOnClickListener { AssistantService.instance?.forceListen() }
 
@@ -221,7 +211,33 @@ class MainActivity : AppCompatActivity() {
         parent.addView(catBtn); parent.addView(itemBox)
     }
 
-    override fun onResume() { super.onResume(); updateStatus() }
+    override fun onResume() { 
+        super.onResume()
+        updateStatus()
+        
+        // KIỂM TRA VÀ TỰ ĐỘNG BẬT DIALOG NẾU CHƯA CẤP QUYỀN
+        val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)?.contains(packageName) == true
+        if (!acc && !hasAutoShownDisclosure) {
+            hasAutoShownDisclosure = true
+            showAccDisclosureDialog()
+        }
+    }
+
+    private fun showAccDisclosureDialog() {
+        val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)?.contains(packageName) == true
+        if (acc) {
+            Toast.makeText(this, "Accessibility is already granted!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("Prominent Disclosure")
+            .setMessage("TAssistant uses the AccessibilityService API to provide hands-free voice assistance.\n\nThis API is required to:\n1. Automate clicking 'Allow' or 'Turn on' on system confirmation dialogs (like Bluetooth/Wi-Fi toggles) when you request it via voice.\n2. Perform global navigation actions such as going Home or Locking the screen via voice commands.\n\nTAssistant DOES NOT use this service to collect, store, or share any of your personal or sensitive user data.")
+            .setPositiveButton("I AGREE") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            .setNegativeButton("NO, THANKS", null)
+            .setCancelable(false)
+            .show()
+    }
     
     private fun updateStatus() {
         val mic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
