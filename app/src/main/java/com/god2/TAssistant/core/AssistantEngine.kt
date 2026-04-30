@@ -42,15 +42,15 @@ class AssistantEngine(private val context: Context) {
         }
 
         val cmdKeys = listOf(
-            "cancel_timer", "cancel_alarm", "home", "back", "recent", "flashlight", "lock", "battery", 
+            "cancel_timer", "cancel_alarm", "home", "back", "recent", "lock", "battery", 
             "volume", "brightness", "random", "play", "stop", "next", "prev", 
             "call", "sms", "open", "camera", "alarm", "timer", "search", "map", 
-            "wifi", "bluetooth", "data"
+            "wifi_on", "wifi_off", "bluetooth_on", "bluetooth_off", "flashlight_on", "flashlight_off", "data_on", "data_off"
         )
         
         var bestKey = "UNKNOWN"
         for (key in cmdKeys) {
-            val userKeyword = prefs.getKeyword(key, key)
+            val userKeyword = prefs.getKeyword(key, key.replace("_", " "))
             if (Regex("\\b$userKeyword\\b").containsMatchIn(raw) && prefs.isEnabled(key)) {
                 bestKey = key
                 break
@@ -76,11 +76,16 @@ class AssistantEngine(private val context: Context) {
             "play" -> { executor.execute("PLAY_MUSIC", raw.substringAfter(prefs.getKeyword("play", "play")).trim(), ""); onResponse("Playing music", correction) }
             "random" -> { executor.execute("PLAY_RANDOM", null, ""); onResponse("Playing random music", correction) }
             "open" -> { executor.execute("OPEN_APP", raw.substringAfter(prefs.getKeyword("open", "open")).trim(), ""); onResponse("Opening app", correction) }
-            "flashlight" -> { executor.execute("TOGGLE_FLASHLIGHT", if(raw.contains("off")) "off" else "on", ""); onResponse("Flashlight toggled", correction) }
+            "flashlight_on" -> { executor.execute("TOGGLE_FLASHLIGHT", "on", ""); onResponse("Flashlight turned on", correction) }
+            "flashlight_off" -> { executor.execute("TOGGLE_FLASHLIGHT", "off", ""); onResponse("Flashlight turned off", correction) }
+            "wifi_on" -> { executor.execute("WIFI", "on", ""); onResponse("Opening WiFi dialog", correction) }
+            "wifi_off" -> { executor.execute("WIFI", "off", ""); onResponse("Opening WiFi dialog", correction) }
+            "bluetooth_on" -> { executor.execute("BLUETOOTH", "on", ""); onResponse("Opening Bluetooth dialog", correction) }
+            "bluetooth_off" -> { executor.execute("BLUETOOTH", "off", ""); onResponse("Opening Bluetooth dialog", correction) }
+            "data_on" -> { executor.execute("DATA", "on", ""); onResponse("Opening Data dialog", correction) }
+            "data_off" -> { executor.execute("DATA", "off", ""); onResponse("Opening Data dialog", correction) }
             "lock" -> { executor.execute("LOCK_SCREEN", null, ""); onResponse("Screen locked", correction) }
             "battery" -> { onResponse(executor.checkBattery(), correction) }
-            "wifi" -> { executor.execute("TOGGLE_WIFI", if(raw.contains("off")) "off" else "on", ""); onResponse("WiFi updated", correction) }
-            "bluetooth" -> { executor.execute("TOGGLE_BLUETOOTH", if(raw.contains("off")) "off" else "on", ""); onResponse("Bluetooth updated", correction) }
             "call" -> { executor.execute("CALL", raw.substringAfter(prefs.getKeyword("call", "call")).trim(), ""); onResponse("Calling", correction) }
             else -> {
                 if (prefs.apiKey.isNotEmpty()) { chatWithAI(raw) { onResponse(it, correction) } } 

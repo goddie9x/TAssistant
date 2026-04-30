@@ -58,7 +58,7 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
                     am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
                 }, 3500)
             }
-            "TOGGLE_WIFI" -> {
+            "WIFI" -> {
                 try {
                     if (Build.VERSION.SDK_INT >= 29) {
                         context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(flags))
@@ -70,7 +70,7 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
                     context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(flags))
                 }
             }
-            "TOGGLE_BLUETOOTH" -> {
+            "BLUETOOTH" -> {
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                         context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(flags))
@@ -80,6 +80,17 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
                     context.startActivity(Intent(reqAction).addFlags(flags))
                 } catch (e: Exception) {
                     context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(flags))
+                }
+            }
+            "DATA" -> {
+                try {
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(flags))
+                    } else {
+                        context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(flags))
+                    }
+                } catch (e: Exception) {
+                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(flags))
                 }
             }
             "SEARCH_WEB" -> { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$target")).addFlags(flags)) }

@@ -56,8 +56,6 @@ class MainActivity : AppCompatActivity() {
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val voices = tts?.voices?.toList() ?: emptyList()
-                
-                // NÂNG CẤP: CHỈ LẤY GIỌNG TIẾNG ANH (Local)
                 val voiceOptions = voices.filter { 
                     it.locale.language == "en" && !it.isNetworkConnectionRequired 
                 }.sortedBy { it.locale.displayName }.map {
@@ -93,9 +91,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight" to "flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi" to "wifi", "bluetooth" to "bluetooth", "data" to "data")
+        // ĐÃ TÁCH BIỆT RÕ RÀNG ON VÀ OFF
+        val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight_on" to "turn on flashlight", "flashlight_off" to "turn off flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi_on" to "turn on wifi", "wifi_off" to "turn off wifi", "bluetooth_on" to "turn on bluetooth", "bluetooth_off" to "turn off bluetooth", "data_on" to "turn on data", "data_off" to "turn off data")
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
-        val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open")
+        val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open app")
         val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "cancel alarm", "timer" to "set timer", "cancel_timer" to "cancel timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
         addCategory(container, "SYSTEM CONTROL", systemCmds)
