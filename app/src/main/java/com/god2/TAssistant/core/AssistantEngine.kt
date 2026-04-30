@@ -28,7 +28,27 @@ class AssistantEngine(private val context: Context) {
         var correction: String? = null
 
         numMap.forEach { (word, digit) -> raw = raw.replace(Regex("\\b$word\\b"), digit) }
-        commonFixes.forEach { (wrong, right) -> if (raw.contains(wrong)) { raw = raw.replace(wrong, right); correction = "Fuzzy match: $raw" } }
+        commonFixes.forEach { (wrong, right) -> 
+            if (raw.contains(wrong)) { 
+                raw = raw.replace(wrong, right)
+                correction = "Fuzzy fix applied" 
+            } 
+        }
+
+        // NÂNG CẤP FUZZY: Chặn đứng sự nhầm lẫn giữa Hủy (Cancel) và Cài (Set)
+        val cancelAlarmKw = prefs.getKeyword("cancel_alarm", "cancel alarm")
+        val alarmRegex = Regex("\\b(cancel|stop|turn off|clear|delete|tắt|huỷ|hủy|xoá|xóa)\\s+(the\\s+)?(alarm|báo thức)(s)?\\b")
+        if (alarmRegex.containsMatchIn(raw) && !raw.contains(cancelAlarmKw)) {
+            raw = raw.replace(alarmRegex, cancelAlarmKw)
+            correction = "Fuzzy match: $cancelAlarmKw"
+        }
+
+        val cancelTimerKw = prefs.getKeyword("cancel_timer", "cancel timer")
+        val timerRegex = Regex("\\b(cancel|stop|turn off|clear|delete|tắt|huỷ|hủy|xoá|xóa)\\s+(the\\s+)?(timer|hẹn giờ)(s)?\\b")
+        if (timerRegex.containsMatchIn(raw) && !raw.contains(cancelTimerKw)) {
+            raw = raw.replace(timerRegex, cancelTimerKw)
+            correction = "Fuzzy match: $cancelTimerKw"
+        }
 
         val customApps = JSONObject(prefs.customAppConfig)
         val keys = customApps.keys()
@@ -68,7 +88,7 @@ class AssistantEngine(private val context: Context) {
             "timer" -> { 
                 val digits = raw.filter { it.isDigit() }
                 val value = if (digits.isNotEmpty()) digits.toInt() else 1
-                val sec = if (raw.contains("hour")) value * 3600 else if (raw.contains("minute") || raw.contains("min")) value * 60 else value
+                val sec = if (raw.contains("hour") || raw.contains("giờ")) value * 3600 else if (raw.contains("minute") || raw.contains("min") || raw.contains("phút")) value * 60 else value
                 executor.execute("SET_TIMER", sec.toString(), "")
                 onResponse("Timer set for $value", correction) 
             }

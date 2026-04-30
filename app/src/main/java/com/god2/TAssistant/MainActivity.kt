@@ -1,5 +1,6 @@
 package com.god2.TAssistant
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,6 +18,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.god2.TAssistant.core.*
 import org.json.JSONObject
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPrefsHelper
@@ -112,7 +114,9 @@ class MainActivity : AppCompatActivity() {
         val systemCmds = listOf("home" to "go home", "back" to "go back", "recent" to "show recents", "lock" to "lock screen", "flashlight_on" to "turn on flashlight", "flashlight_off" to "turn off flashlight", "battery" to "battery", "volume" to "volume", "brightness" to "brightness", "wifi_on" to "turn on wifi", "wifi_off" to "turn off wifi", "bluetooth_on" to "turn on bluetooth", "bluetooth_off" to "turn off bluetooth", "data_on" to "turn on data", "data_off" to "turn off data")
         val mediaCmds = listOf("play" to "play", "random" to "play random", "stop" to "stop music", "next" to "next song", "prev" to "previous song")
         val commCmds = listOf("call" to "call", "sms" to "send message", "open" to "open app")
-        val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "cancel alarm", "timer" to "set timer", "cancel_timer" to "cancel timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
+        
+        // ĐÃ ĐỔI TỪ KHÓA MẶC ĐỊNH SANG "CLEAR ALARM" / "CLEAR TIMER"
+        val utilCmds = listOf("alarm" to "set alarm", "cancel_alarm" to "clear alarm", "timer" to "set timer", "cancel_timer" to "clear timer", "search" to "search", "map" to "navigate to", "camera" to "open camera")
 
         addCategory(container, "SYSTEM CONTROL", systemCmds)
         addCategory(container, "MEDIA", mediaCmds)
@@ -131,7 +135,17 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
         }
         findViewById<Button>(R.id.btnPermOverlay).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
-        findViewById<Button>(R.id.btnPermAccessibility).setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        
+        findViewById<Button>(R.id.btnPermAccessibility).setOnClickListener { 
+            AlertDialog.Builder(this)
+                .setTitle("Accessibility Service Disclosure")
+                .setMessage("TAssistant uses the AccessibilityService API to provide hands-free voice assistance. \n\nWe use this service specifically to:\n1. Automate clicking 'Allow/Turn on' on system confirmation dialogs (like Bluetooth and Wi-Fi toggles) when you request it via voice.\n2. Perform global navigation actions such as going Home or Locking the screen via voice commands.\n\nWe DO NOT use this service to collect, store, or share any of your personal or sensitive data.")
+                .setPositiveButton("I AGREE") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                .setNegativeButton("CANCEL", null)
+                .setCancelable(false)
+                .show()
+        }
+
         findViewById<Button>(R.id.btnPermWriteSettings).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))) }
         findViewById<Button>(R.id.btnTestVoice).setOnClickListener { AssistantService.instance?.forceListen() }
 

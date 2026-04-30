@@ -33,14 +33,30 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
                 val parts = target?.split(":")
                 val h = parts?.get(0)?.toIntOrNull() ?: 7
                 val m = parts?.get(1)?.toIntOrNull() ?: 0
-                context.startActivity(Intent(AlarmClock.ACTION_SET_ALARM).apply { putExtra(AlarmClock.EXTRA_HOUR, h); putExtra(AlarmClock.EXTRA_MINUTES, m); putExtra(AlarmClock.EXTRA_SKIP_UI, true); addFlags(flags) })
+                try {
+                    context.startActivity(Intent(AlarmClock.ACTION_SET_ALARM).apply { putExtra(AlarmClock.EXTRA_HOUR, h); putExtra(AlarmClock.EXTRA_MINUTES, m); putExtra(AlarmClock.EXTRA_SKIP_UI, true); addFlags(flags) })
+                } catch (e: Exception) {}
             }
-            "CANCEL_ALARM" -> { context.startActivity(Intent(AlarmClock.ACTION_DISMISS_ALARM).apply { putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all"); addFlags(flags) }) }
+            "CANCEL_ALARM" -> { 
+                try {
+                    context.startActivity(Intent(AlarmClock.ACTION_DISMISS_ALARM).apply { putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all"); addFlags(flags) }) 
+                } catch (e: Exception) {
+                    try { context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(flags)) } catch (ex: Exception) {}
+                }
+            }
             "SET_TIMER" -> {
                 val sec = target?.toIntOrNull() ?: 60
-                context.startActivity(Intent(AlarmClock.ACTION_SET_TIMER).apply { putExtra(AlarmClock.EXTRA_LENGTH, sec); putExtra(AlarmClock.EXTRA_SKIP_UI, true); addFlags(flags) })
+                try {
+                    context.startActivity(Intent(AlarmClock.ACTION_SET_TIMER).apply { putExtra(AlarmClock.EXTRA_LENGTH, sec); putExtra(AlarmClock.EXTRA_SKIP_UI, true); addFlags(flags) })
+                } catch (e: Exception) {}
             }
-            "CANCEL_TIMER" -> { context.startActivity(Intent(AlarmClock.ACTION_DISMISS_TIMER).apply { putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all"); addFlags(flags) } ) }
+            "CANCEL_TIMER" -> { 
+                try {
+                    context.startActivity(Intent(AlarmClock.ACTION_DISMISS_TIMER).apply { putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, "android.all"); addFlags(flags) } ) 
+                } catch (e: Exception) {
+                    try { context.startActivity(Intent(AlarmClock.ACTION_SHOW_TIMERS).addFlags(flags)) } catch (ex: Exception) {}
+                }
+            }
             "PLAY_MUSIC", "PLAY_RANDOM" -> {
                 val query = if (action == "PLAY_RANDOM") "" else (target ?: "")
                 val intent = if (query.isEmpty()) { Intent(Intent.ACTION_VIEW).apply { setDataAndType(Uri.EMPTY, "audio/*") } } else { Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply { putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*"); putExtra(android.app.SearchManager.QUERY, query) } }

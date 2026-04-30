@@ -28,7 +28,6 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
     private fun createOverlayIfNeeded() {
         if (overlayView != null) return
         
-        // NÂNG CẤP: MATCH_PARENT toàn màn hình để bắt mọi cú chạm ra ngoài
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -41,7 +40,6 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM
             setBackgroundColor(Color.TRANSPARENT)
-            // Chạm vào phần màn hình trống (ngoài Card) là lập tức hủy lệnh
             setOnClickListener { onCancel() }
         }
 
@@ -56,7 +54,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             val lp = LinearLayout.LayoutParams(-1, -2)
             lp.setMargins(40, 0, 40, 100)
             layoutParams = lp
-            isClickable = true // Chặn không cho click lọt xuống nền Root
+            isClickable = true 
         }
 
         tvTitle = TextView(context).apply { setTextColor(Color.parseColor("#00E676")); textSize = 11f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 0, 8) }
@@ -100,11 +98,10 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             onExecute(etCommand?.text.toString().ifEmpty { cmd })
         }
 
-        // NÂNG CẤP: Bắt ACTION_DOWN (chạm tay xuống là kích hoạt ngay lập tức)
         card.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
-                autoHandler.removeCallbacksAndMessages(null) // Phanh gấp bộ đếm
-                card.setOnTouchListener(null) // Gỡ listener để gõ phím không bị loạn
+                autoHandler.removeCallbacksAndMessages(null)
+                card.setOnTouchListener(null) 
                 
                 tvTitle?.text = "EDIT COMMAND"
                 tvContent?.visibility = View.GONE
@@ -113,7 +110,6 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
                     setText(cmd)
                     setSelection(cmd.length)
                     requestFocus()
-                    // Delay nhẹ 100ms để layout kịp vẽ rồi mới đẩy bàn phím ảo lên
                     postDelayed({
                         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -121,10 +117,9 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
                 }
                 btnConfirm?.apply { visibility = View.VISIBLE; setOnClickListener { executeNow() } }
             }
-            true // Báo hiệu đã nuốt trọn sự kiện chạm này
+            true 
         }
 
-        // Đếm ngược nửa giây
         autoHandler.postDelayed({ executeNow() }, 550)
     }
 
@@ -140,7 +135,7 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
         tvContent?.text = content
         
         val card = (overlayView as LinearLayout).getChildAt(0) as LinearLayout
-        card.setOnTouchListener(null) // Trạng thái này không cần bắt edit nữa
+        card.setOnTouchListener(null) 
 
         if (isProcessing) {
             val anim = AlphaAnimation(0.6f, 1.0f).apply { duration = 400; repeatCount = -1; repeatMode = 2 }

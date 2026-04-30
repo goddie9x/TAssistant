@@ -129,7 +129,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         isVoiceActive = false
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
-        hardRestartVosk() // Chỉ Reset Mic khi hệ thống thực sự báo lỗi cướp Mic
+        hardRestartVosk()
     }
     
     override fun onTimeout() { 

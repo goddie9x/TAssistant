@@ -34,15 +34,12 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) applyTtsSettings()
     }
 
-    // TÁCH RIÊNG HÀM ÉP GIỌNG VÀ TỐC ĐỘ ĐỌC
     private fun applyTtsSettings() {
         try {
             val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
             
-            // Ép tốc độ đọc
             tts?.setSpeechRate(sp.getFloat("tts_speed", 1.0f))
 
-            // Ép giọng nói (Tuyệt đối không dùng kèm setLanguage để tránh bị Android reset)
             val vName = sp.getString("tts_voice", "")
             if (!vName.isNullOrEmpty()) {
                 tts?.voices?.find { it.name == vName }?.let { tts?.voice = it }
@@ -55,7 +52,7 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
     fun performGlobal(actionId: Int) { performGlobalAction(actionId) }
 
     fun speak(text: String, onDone: (() -> Unit)? = null) {
-        applyTtsSettings() // Ép nạp lại Settings chuẩn xác 1 mili-giây trước khi mở miệng
+        applyTtsSettings()
         
         val uid = System.currentTimeMillis().toString()
         if (onDone != null) {
