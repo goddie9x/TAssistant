@@ -3,6 +3,7 @@ import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.SpeechService
@@ -27,7 +28,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     )
 
     init {
-        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> })
+        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> Log.e("TAssistant", "Model error: ${e.message}") })
     }
 
     private fun startVosk() {
@@ -36,14 +37,23 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             val rec = Recognizer(model, 16000.0f)
             speechService = SpeechService(rec, 16000.0f)
             speechService?.startListening(this)
-        } catch (e: Exception) { mainHandler.postDelayed({ startVosk() }, 2000) }
+        } catch (e: Exception) { 
+            mainHandler.postDelayed({ startVosk() }, 2000) 
+        }
+    }
+
+    private fun hardRestartVosk() {
+        try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
+        speechService = null
+        mainHandler.postDelayed({ startVosk() }, 1000)
     }
 
     fun forceTrigger() {
         if (isVoiceActive) return
         isVoiceActive = true
-        audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         AssistantService.instance?.stopSpeak()
+        speechService?.setPause(false)
         mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
     }
 
@@ -51,12 +61,14 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         val p = JSONObject(h).optString("partial").lowercase().trim()
         if (p.isEmpty()) return
         val wake = prefs.wakeWord.lowercase()
+        
         if (!isVoiceActive && p.contains(wake)) {
             isVoiceActive = true
             AssistantService.instance?.stopSpeak()
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
             mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
         }
+        
         if (isVoiceActive) {
             var displayStr = if (p.contains(wake)) p.substringAfter(wake).trim() else p
             quickFuzzyMap.forEach { (k, v) -> displayStr = displayStr.replace(k, v) }
@@ -69,14 +81,20 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         if (text.isEmpty()) return
         val wake = prefs.wakeWord.lowercase()
 
-        if (!isVoiceActive && text.contains(wake)) isVoiceActive = true
+        if (!isVoiceActive && text.contains(wake)) {
+            isVoiceActive = true
+            AssistantService.instance?.stopSpeak()
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+        }
 
         if (isVoiceActive) {
             var cmd = if (text.contains(wake)) text.substringAfter(wake).trim() else text
             quickFuzzyMap.forEach { (k, v) -> cmd = cmd.replace(k, v) }
             
             if (cmd.isNotEmpty()) {
-                stopVoskInternal()
+                // TẠM DỪNG MIC (Pause) THAY VÌ HỦY DIỆT (Stop)
+                speechService?.setPause(true)
+                
                 mainHandler.post {
                     overlay.showFlashCommand(cmd) { finalCmd ->
                         CoroutineScope(Dispatchers.IO).launch {
@@ -84,19 +102,18 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
                                 mainHandler.post {
                                     if (!isVoiceActive) return@post
                                     overlay.showOverlay("Assistant", resp, false)
-                                    AssistantService.instance?.speak(resp) { mainHandler.postDelayed({ releaseAndStop() }, 1200) }
+                                    AssistantService.instance?.speak(resp) { 
+                                        mainHandler.postDelayed({ releaseAndStop() }, 1200) 
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            } else { mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") } }
+            } else { 
+                mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") } 
+            }
         }
-    }
-
-    private fun stopVoskInternal() {
-        try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
-        speechService = null
     }
 
     private fun releaseAndStop() {
@@ -105,12 +122,27 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         AssistantService.instance?.stopSpeak()
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
-        stopVoskInternal()
-        mainHandler.postDelayed({ startVosk() }, 800)
+        
+        // MỞ LẠI MIC NGAY LẬP TỨC (Không tốn mili-giây nào để khởi động lại phần cứng)
+        speechService?.setPause(false)
     }
 
-    override fun onError(e: Exception) { releaseAndStop() }
-    override fun onTimeout() { releaseAndStop() }
+    override fun onError(e: Exception) { 
+        isVoiceActive = false
+        mainHandler.post { overlay.hide() }
+        audioManager.abandonAudioFocus(null)
+        hardRestartVosk() // Chỉ Reset Mic khi hệ thống thực sự báo lỗi cướp Mic
+    }
+    
+    override fun onTimeout() { 
+        hardRestartVosk() 
+    }
+    
     override fun onFinalResult(h: String) {}
-    fun destroy() { stopVoskInternal(); AssistantService.instance?.stopSpeak(); audioManager.abandonAudioFocus(null) }
+    
+    fun destroy() { 
+        try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
+        AssistantService.instance?.stopSpeak()
+        audioManager.abandonAudioFocus(null) 
+    }
 }
