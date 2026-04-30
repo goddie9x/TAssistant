@@ -1,59 +1,107 @@
 package com.god2.TAssistant.core
+
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityButtonController
-import android.content.Intent
-import android.view.accessibility.AccessibilityEvent
-import android.os.Build
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import java.util.Locale
 
 class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
-    private var voiceManager: VoiceManager? = null
     private var tts: TextToSpeech? = null
-    companion object { var instance: AssistantService? = null }
+    private var voiceManager: VoiceManager? = null
+
+    companion object {
+        var instance: AssistantService? = null
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         tts = TextToSpeech(this, this)
         voiceManager = VoiceManager(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            accessibilityButtonController.registerAccessibilityButtonCallback(
-                object : AccessibilityButtonController.AccessibilityButtonCallback() {
-                    override fun onClicked(controller: AccessibilityButtonController) { forceListen() }
-                }
-            )
+        
+        // Kích hoạt lắng nghe cửa sổ để tự động click
+        val info = AccessibilityServiceInfo().apply {
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
         }
+        serviceInfo = info
     }
 
     override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) { tts?.language = Locale.US }
+        if (status == TextToSpeech.SUCCESS) {
+            tts?.language = Locale.getDefault()
+        }
     }
 
-    fun speak(text: String, onDone: () -> Unit) {
-        tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) { onDone() }
-            override fun onError(utteranceId: String?) { onDone() }
-        })
-        val params = android.os.Bundle()
-        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "done")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "done")
+    fun forceListen() { voiceManager?.forceTrigger() }
+    
+    fun performGlobal(actionId: Int) { performGlobalAction(actionId) }
+
+    fun speak(text: String, onDone: (() -> Unit)? = null) {
+        try {
+            val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
+            val vName = sp.getString("tts_voice", "")
+            if (!vName.isNullOrEmpty()) {
+                val targetVoice = tts?.voices?.find { it.name == vName }
+                if (targetVoice != null) { tts?.voice = targetVoice }
+            }
+        } catch (e: Exception) {}
+
+        val uid = System.currentTimeMillis().toString()
+        if (onDone != null) {
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) { if (utteranceId == uid) onDone() }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) { onDone() }
+            })
+        }
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, uid)
     }
 
-    fun stopSpeak() {
-        try { tts?.stop() } catch (e: Exception) {}
+    fun stopSpeak() { tts?.stop() }
+
+    // --- BỘ NÃO TỰ ĐỘNG CLICK (AUTO-CLICKER) ---
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        
+        try {
+            val root = rootInActiveWindow ?: return
+            
+            // Tìm chữ "Bluetooth" để xác nhận đúng là hộp thoại Bluetooth
+            val btNodes = root.findAccessibilityNodeInfosByText("Bluetooth")
+            if (btNodes.isNotEmpty()) {
+                val allows = ArrayList<AccessibilityNodeInfo>()
+                allows.addAll(root.findAccessibilityNodeInfosByText("Allow"))
+                allows.addAll(root.findAccessibilityNodeInfosByText("Turn on"))
+                allows.addAll(root.findAccessibilityNodeInfosByText("Cho phép"))
+                allows.addAll(root.findAccessibilityNodeInfosByText("Bật"))
+                
+                for (node in allows) {
+                    if (node.isClickable) {
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        break
+                    } else if (node.parent?.isClickable == true) {
+                        node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {}
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
-    override fun onUnbind(intent: Intent?): Boolean {
-        instance = null
+
+    override fun onDestroy() {
         voiceManager?.destroy()
         tts?.stop()
         tts?.shutdown()
-        return super.onUnbind(intent)
+        instance = null
+        super.onDestroy()
     }
-    fun performGlobal(action: Int) { performGlobalAction(action) }
-    fun forceListen() { voiceManager?.forceTrigger() }
 }
