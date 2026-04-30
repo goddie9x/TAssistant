@@ -1,7 +1,9 @@
 package com.god2.TAssistant.core
+import android.Manifest
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
@@ -11,6 +13,7 @@ import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings
 import android.view.KeyEvent
+import androidx.core.content.ContextCompat
 
 class ActionExecutor(private val context: Context, private val prefs: SharedPrefsHelper) {
     fun execute(action: String, target: String?, message: String) {
@@ -96,8 +99,24 @@ class ActionExecutor(private val context: Context, private val prefs: SharedPref
                 }
             }
             "TOGGLE_BLUETOOTH" -> {
-                val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
-                if (target == "on") bm.adapter?.enable() else bm.adapter?.disable()
+                try {
+                    val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
+                    val hasPerm = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                                  ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                    
+                    if (hasPerm) {
+                        val success = if (target == "on") bm.adapter?.enable() == true else bm.adapter?.disable() == true
+                        if (!success) {
+                            val reqAction = if (target == "on") android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE else "android.bluetooth.adapter.action.REQUEST_DISABLE"
+                            context.startActivity(Intent(reqAction).addFlags(flags))
+                        }
+                    } else {
+                        // Tránh crash trên Android 12+ nếu chưa được cấp quyền
+                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(flags))
+                    }
+                } catch (e: Exception) {
+                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(flags))
+                }
             }
             "SEARCH_WEB" -> { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$target")).addFlags(flags)) }
             "GO_HOME" -> AssistantService.instance?.performGlobal(AccessibilityService.GLOBAL_ACTION_HOME)
