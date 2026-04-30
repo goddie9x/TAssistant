@@ -92,7 +92,6 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             quickFuzzyMap.forEach { (k, v) -> cmd = cmd.replace(k, v) }
             
             if (cmd.isNotEmpty()) {
-                // TẠM DỪNG MIC (Pause) THAY VÌ HỦY DIỆT (Stop)
                 speechService?.setPause(true)
                 
                 mainHandler.post {
@@ -123,7 +122,6 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
         
-        // MỞ LẠI MIC NGAY LẬP TỨC (Không tốn mili-giây nào để khởi động lại phần cứng)
         speechService?.setPause(false)
     }
 

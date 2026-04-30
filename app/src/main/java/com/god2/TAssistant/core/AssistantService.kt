@@ -6,7 +6,6 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import java.util.Locale
 
 class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
@@ -26,32 +25,38 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            notificationTimeout = 200
         }
         serviceInfo = info
     }
 
-    override fun onInit(status: Int) {}
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) applyTtsSettings()
+    }
+
+    // TÁCH RIÊNG HÀM ÉP GIỌNG VÀ TỐC ĐỘ ĐỌC
+    private fun applyTtsSettings() {
+        try {
+            val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
+            
+            // Ép tốc độ đọc
+            tts?.setSpeechRate(sp.getFloat("tts_speed", 1.0f))
+
+            // Ép giọng nói (Tuyệt đối không dùng kèm setLanguage để tránh bị Android reset)
+            val vName = sp.getString("tts_voice", "")
+            if (!vName.isNullOrEmpty()) {
+                tts?.voices?.find { it.name == vName }?.let { tts?.voice = it }
+            }
+        } catch (e: Exception) {}
+    }
 
     fun forceListen() { voiceManager?.forceTrigger() }
     
     fun performGlobal(actionId: Int) { performGlobalAction(actionId) }
 
     fun speak(text: String, onDone: (() -> Unit)? = null) {
-        try {
-            val sp = getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
-            val rate = sp.getFloat("tts_speed", 1.0f)
-            tts?.setSpeechRate(rate)
-
-            val vName = sp.getString("tts_voice", "")
-            if (!vName.isNullOrEmpty()) {
-                val targetVoice = tts?.voices?.firstOrNull { it.name == vName }
-                if (targetVoice != null) { 
-                    tts?.voice = targetVoice
-                    tts?.language = targetVoice.locale 
-                }
-            }
-        } catch (e: Exception) {}
-
+        applyTtsSettings() // Ép nạp lại Settings chuẩn xác 1 mili-giây trước khi mở miệng
+        
         val uid = System.currentTimeMillis().toString()
         if (onDone != null) {
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -67,7 +72,8 @@ class AssistantService : AccessibilityService(), TextToSpeech.OnInitListener {
     fun stopSpeak() { tts?.stop() }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        
         try {
             val root = rootInActiveWindow ?: return
             val btNodes = root.findAccessibilityNodeInfosByText("Bluetooth")
