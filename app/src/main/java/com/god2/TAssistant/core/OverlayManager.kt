@@ -8,9 +8,11 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.AlphaAnimation
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 
 class OverlayManager(private val context: Context, private val onCancel: () -> Unit) {
@@ -20,17 +22,18 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
     private var tvContent: TextView? = null
     private var etCommand: EditText? = null
     private var btnConfirm: Button? = null
-    private var tvCountdown: TextView? = null
     
     private val autoHandler = Handler(Looper.getMainLooper())
 
     private fun createOverlayIfNeeded() {
         if (overlayView != null) return
+        
+        // NÂNG CẤP: MATCH_PARENT toàn màn hình để bắt mọi cú chạm ra ngoài
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.BOTTOM }
 
@@ -38,7 +41,8 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM
             setBackgroundColor(Color.TRANSPARENT)
-            setOnTouchListener { _, _ -> onCancel(); true }
+            // Chạm vào phần màn hình trống (ngoài Card) là lập tức hủy lệnh
+            setOnClickListener { onCancel() }
         }
 
         val card = LinearLayout(context).apply {
@@ -52,81 +56,76 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
             val lp = LinearLayout.LayoutParams(-1, -2)
             lp.setMargins(40, 0, 40, 100)
             layoutParams = lp
-            setOnClickListener { }
+            isClickable = true // Chặn không cho click lọt xuống nền Root
         }
 
-        tvTitle = TextView(context).apply { setTextColor(Color.parseColor("#00E676")); textSize = 12f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 0, 16) }
-        val scrollView = ScrollView(context).apply { layoutParams = LinearLayout.LayoutParams(-1, -2); isScrollbarFadingEnabled = false }
-        tvContent = TextView(context).apply { setTextColor(Color.WHITE); textSize = 18f; setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL)) }
-        scrollView.addView(tvContent)
+        tvTitle = TextView(context).apply { setTextColor(Color.parseColor("#00E676")); textSize = 11f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 0, 8) }
+        tvContent = TextView(context).apply { setTextColor(Color.WHITE); textSize = 20f; setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL)) }
 
         etCommand = EditText(context).apply {
-            setTextColor(Color.WHITE)
+            setTextColor(Color.WHITE); textSize = 20f
             backgroundTintList = ColorStateList.valueOf(Color.parseColor("#00E676"))
-            textSize = 18f
             visibility = View.GONE
         }
         
         btnConfirm = Button(context).apply {
-            text = "EXECUTE NOW"
-            setBackgroundColor(Color.parseColor("#00E676"))
-            setTextColor(Color.BLACK)
+            text = "RUN NOW"; setBackgroundColor(Color.parseColor("#00E676")); setTextColor(Color.BLACK)
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = 20 }
         }
-        
-        tvCountdown = TextView(context).apply {
-            setTextColor(Color.GRAY)
-            textSize = 12f
-            visibility = View.GONE
-            gravity = Gravity.CENTER
-            setPadding(0, 16, 0, 0)
-        }
 
-        card.addView(tvTitle); card.addView(scrollView); card.addView(etCommand); card.addView(btnConfirm); card.addView(tvCountdown)
+        card.addView(tvTitle); card.addView(tvContent); card.addView(etCommand); card.addView(btnConfirm)
         root.addView(card)
         overlayView = root
         try { windowManager.addView(overlayView, params) } catch (e: Exception) {}
     }
 
-    fun showEditableCommand(cmd: String, onExecute: (String) -> Unit) {
+    fun showFlashCommand(cmd: String, onExecute: (String) -> Unit) {
         createOverlayIfNeeded()
         autoHandler.removeCallbacksAndMessages(null)
         
-        tvTitle?.text = "COMMAND DETECTED"
-        tvContent?.visibility = View.GONE
-        etCommand?.visibility = View.VISIBLE
-        btnConfirm?.visibility = View.VISIBLE
-        tvCountdown?.visibility = View.VISIBLE
+        tvTitle?.text = "QUICK COMMAND"
+        tvContent?.text = cmd
+        tvContent?.visibility = View.VISIBLE
+        etCommand?.visibility = View.GONE
+        btnConfirm?.visibility = View.GONE
+
+        val card = (overlayView as LinearLayout).getChildAt(0) as LinearLayout
         
-        etCommand?.setText(cmd)
-        
-        var ticks = 2 
-        val executeFn = {
+        val executeNow = {
             autoHandler.removeCallbacksAndMessages(null)
-            showOverlay("PROCESSING...", "Executing...", true)
-            onExecute(etCommand?.text.toString())
+            showOverlay("WORKING", "Processing...", true)
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(etCommand?.windowToken, 0)
+            onExecute(etCommand?.text.toString().ifEmpty { cmd })
         }
 
-        btnConfirm?.setOnClickListener { executeFn() }
-        etCommand?.setOnTouchListener { _, _ -> 
-            autoHandler.removeCallbacksAndMessages(null)
-            tvCountdown?.text = "Auto-execute paused. Edit and press Execute."
-            false 
-        }
-
-        val runnable = object : Runnable {
-            override fun run() {
-                if (ticks > 0) {
-                    tvCountdown?.text = "Auto-executing in $ticks s..."
-                    ticks--
-                    autoHandler.postDelayed(this, 800) 
-                } else {
-                    executeFn()
+        // NÂNG CẤP: Bắt ACTION_DOWN (chạm tay xuống là kích hoạt ngay lập tức)
+        card.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                autoHandler.removeCallbacksAndMessages(null) // Phanh gấp bộ đếm
+                card.setOnTouchListener(null) // Gỡ listener để gõ phím không bị loạn
+                
+                tvTitle?.text = "EDIT COMMAND"
+                tvContent?.visibility = View.GONE
+                etCommand?.apply { 
+                    visibility = View.VISIBLE
+                    setText(cmd)
+                    setSelection(cmd.length)
+                    requestFocus()
+                    // Delay nhẹ 100ms để layout kịp vẽ rồi mới đẩy bàn phím ảo lên
+                    postDelayed({
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                    }, 100)
                 }
+                btnConfirm?.apply { visibility = View.VISIBLE; setOnClickListener { executeNow() } }
             }
+            true // Báo hiệu đã nuốt trọn sự kiện chạm này
         }
-        autoHandler.post(runnable)
+
+        // Đếm ngược nửa giây
+        autoHandler.postDelayed({ executeNow() }, 550)
     }
 
     fun showOverlay(title: String, content: String, isProcessing: Boolean = false) {
@@ -135,14 +134,16 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
         
         etCommand?.visibility = View.GONE
         btnConfirm?.visibility = View.GONE
-        tvCountdown?.visibility = View.GONE
         tvContent?.visibility = View.VISIBLE
         
         tvTitle?.text = title.uppercase()
         tvContent?.text = content
         
+        val card = (overlayView as LinearLayout).getChildAt(0) as LinearLayout
+        card.setOnTouchListener(null) // Trạng thái này không cần bắt edit nữa
+
         if (isProcessing) {
-            val anim = AlphaAnimation(0.5f, 1.0f).apply { duration = 500; repeatCount = -1; repeatMode = 2 }
+            val anim = AlphaAnimation(0.6f, 1.0f).apply { duration = 400; repeatCount = -1; repeatMode = 2 }
             tvContent?.startAnimation(anim)
         } else { tvContent?.clearAnimation() }
     }
@@ -151,6 +152,8 @@ class OverlayManager(private val context: Context, private val onCancel: () -> U
 
     fun hide() {
         autoHandler.removeCallbacksAndMessages(null)
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        etCommand?.windowToken?.let { imm.hideSoftInputFromWindow(it, 0) }
         overlayView?.let { try { windowManager.removeView(it) } catch (e: Exception) {}; overlayView = null }
     }
 }

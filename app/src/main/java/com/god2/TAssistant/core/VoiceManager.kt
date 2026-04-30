@@ -3,7 +3,6 @@ import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.SpeechService
@@ -22,8 +21,13 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     @Volatile private var isVoiceActive = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private val quickFuzzyMap = mapOf(
+        "you tube" to "youtube", "face book" to "facebook", "tik tok" to "tiktok",
+        "a lam" to "alarm", "ti mer" to "timer", "wi fi" to "wifi", "blue tooth" to "bluetooth"
+    )
+
     init {
-        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> Log.e("TAssistant", "Model error: ${e.message}") })
+        StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> })
     }
 
     private fun startVosk() {
@@ -32,9 +36,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             val rec = Recognizer(model, 16000.0f)
             speechService = SpeechService(rec, 16000.0f)
             speechService?.startListening(this)
-        } catch (e: Exception) {
-            mainHandler.postDelayed({ startVosk() }, 2000)
-        }
+        } catch (e: Exception) { mainHandler.postDelayed({ startVosk() }, 2000) }
     }
 
     fun forceTrigger() {
@@ -48,66 +50,47 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     override fun onPartialResult(h: String) {
         val p = JSONObject(h).optString("partial").lowercase().trim()
         if (p.isEmpty()) return
-
         val wake = prefs.wakeWord.lowercase()
-
-        // Bắt Wake Word thời gian thực
         if (!isVoiceActive && p.contains(wake)) {
             isVoiceActive = true
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
             mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
         }
-
         if (isVoiceActive) {
-            // Vừa hiện vừa lắng nghe
-            val displayStr = if (p.contains(wake)) p.substringAfter(wake).trim() else p
-            if (displayStr.isNotEmpty()) {
-                mainHandler.post { overlay.updateContent(displayStr) }
-            }
+            var displayStr = if (p.contains(wake)) p.substringAfter(wake).trim() else p
+            quickFuzzyMap.forEach { (k, v) -> displayStr = displayStr.replace(k, v) }
+            if (displayStr.isNotEmpty()) mainHandler.post { overlay.updateContent(displayStr) }
         }
     }
 
     override fun onResult(hypothesis: String) {
         val text = JSONObject(hypothesis).optString("text").lowercase().trim()
         if (text.isEmpty()) return
-
         val wake = prefs.wakeWord.lowercase()
 
-        if (!isVoiceActive && text.contains(wake)) {
-            isVoiceActive = true
-            AssistantService.instance?.stopSpeak()
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-        }
+        if (!isVoiceActive && text.contains(wake)) isVoiceActive = true
 
         if (isVoiceActive) {
-            val cmd = if (text.contains(wake)) text.substringAfter(wake).trim() else text
+            var cmd = if (text.contains(wake)) text.substringAfter(wake).trim() else text
+            quickFuzzyMap.forEach { (k, v) -> cmd = cmd.replace(k, v) }
             
             if (cmd.isNotEmpty()) {
-                processCommandWithEdit(cmd)
-            } else {
-                mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
-            }
-        }
-    }
-
-    private fun processCommandWithEdit(cmd: String) {
-        stopVoskInternal() // Ngắt Mic để trả tài nguyên
-        mainHandler.post {
-            overlay.showEditableCommand(cmd) { finalCmd ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    engine.processCommand(finalCmd) { resp, correction ->
-                        mainHandler.post {
-                            if (!isVoiceActive) return@post
-                            val msg = if (correction != null) "$correction\n\n$resp" else resp
-                            overlay.showOverlay("Assistant", msg, false)
-                            AssistantService.instance?.speak(msg) {
-                                mainHandler.postDelayed({ releaseAndStop() }, 1500)
+                stopVoskInternal()
+                mainHandler.post {
+                    overlay.showFlashCommand(cmd) { finalCmd ->
+                        CoroutineScope(Dispatchers.IO).launch {
+                            engine.processCommand(finalCmd) { resp, corr ->
+                                mainHandler.post {
+                                    if (!isVoiceActive) return@post
+                                    overlay.showOverlay("Assistant", resp, false)
+                                    AssistantService.instance?.speak(resp) { mainHandler.postDelayed({ releaseAndStop() }, 1200) }
+                                }
                             }
                         }
                     }
                 }
-            }
+            } else { mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") } }
         }
     }
 
@@ -129,10 +112,5 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     override fun onError(e: Exception) { releaseAndStop() }
     override fun onTimeout() { releaseAndStop() }
     override fun onFinalResult(h: String) {}
-
-    fun destroy() {
-        stopVoskInternal()
-        AssistantService.instance?.stopSpeak()
-        audioManager.abandonAudioFocus(null)
-    }
+    fun destroy() { stopVoskInternal(); AssistantService.instance?.stopSpeak(); audioManager.abandonAudioFocus(null) }
 }
