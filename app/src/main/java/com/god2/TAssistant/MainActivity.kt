@@ -74,6 +74,27 @@ class MainActivity : AppCompatActivity() {
         speedContainer.addView(sbSpeed)
         container.addView(speedContainer, 1)
 
+        val autoSleepContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40); gravity = android.view.Gravity.CENTER_VERTICAL }
+        val tvAutoSleep = TextView(this).apply { text = "AUTO SLEEP (SAVE BATTERY)"; setTextColor(Color.parseColor("#00E676")); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); textSize = 13f; setTypeface(null, android.graphics.Typeface.BOLD) }
+        val swAutoSleep = Switch(this).apply { isChecked = sp.getBoolean("auto_sleep", true) }
+        autoSleepContainer.addView(tvAutoSleep)
+        autoSleepContainer.addView(swAutoSleep)
+        container.addView(autoSleepContainer, 2)
+
+        swAutoSleep.setOnCheckedChangeListener { _, isChecked ->
+            if (!isChecked) {
+                AlertDialog.Builder(this)
+                    .setTitle("Warning!")
+                    .setMessage("CẢNH BÁO: Tắt tính năng này sẽ khiến Micro hoạt động liên tục 24/7 kể cả khi tắt màn hình. Việc này sẽ làm hao pin thiết bị của bạn RẤT NHANH. Bạn có chắc chắn muốn tắt?")
+                    .setPositiveButton("TẮT") { _, _ -> sp.edit().putBoolean("auto_sleep", false).apply() }
+                    .setNegativeButton("HỦY") { _, _ -> swAutoSleep.isChecked = true }
+                    .setCancelable(false)
+                    .show()
+            } else {
+                sp.edit().putBoolean("auto_sleep", true).apply()
+            }
+        }
+
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val voices = tts?.voices?.toList() ?: emptyList()
@@ -134,7 +155,6 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 1)
         }
         findViewById<Button>(R.id.btnPermOverlay).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
-        
         findViewById<Button>(R.id.btnPermAccessibility).setOnClickListener { showAccDisclosureDialog() }
         findViewById<Button>(R.id.btnPermWriteSettings).setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))) }
         findViewById<Button>(R.id.btnTestVoice).setOnClickListener { AssistantService.instance?.forceListen() }
@@ -214,8 +234,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { 
         super.onResume()
         updateStatus()
-        
-        // KIỂM TRA VÀ TỰ ĐỘNG BẬT DIALOG NẾU CHƯA CẤP QUYỀN
         val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)?.contains(packageName) == true
         if (!acc && !hasAutoShownDisclosure) {
             hasAutoShownDisclosure = true
@@ -225,11 +243,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAccDisclosureDialog() {
         val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)?.contains(packageName) == true
-        if (acc) {
-            Toast.makeText(this, "Accessibility is already granted!", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
+        if (acc) { Toast.makeText(this, "Accessibility is already granted!", Toast.LENGTH_SHORT).show(); return }
         AlertDialog.Builder(this)
             .setTitle("Prominent Disclosure")
             .setMessage("TAssistant uses the AccessibilityService API to provide hands-free voice assistance.\n\nThis API is required to:\n1. Automate clicking 'Allow' or 'Turn on' on system confirmation dialogs (like Bluetooth/Wi-Fi toggles) when you request it via voice.\n2. Perform global navigation actions such as going Home or Locking the screen via voice commands.\n\nTAssistant DOES NOT use this service to collect, store, or share any of your personal or sensitive user data.")

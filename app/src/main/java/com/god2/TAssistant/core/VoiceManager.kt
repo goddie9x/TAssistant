@@ -1,9 +1,13 @@
 package com.god2.TAssistant.core
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.SpeechService
@@ -18,8 +22,10 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     private val overlay = OverlayManager(context) { releaseAndStop() }
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val prefs = SharedPrefsHelper(context)
+    private val sp = context.getSharedPreferences("TAssistantVoicePrefs", Context.MODE_PRIVATE)
     
     @Volatile private var isVoiceActive = false
+    private var wasMusicPlaying = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val quickFuzzyMap = mapOf(
@@ -27,8 +33,23 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         "a lam" to "alarm", "ti mer" to "timer", "wi fi" to "wifi", "blue tooth" to "bluetooth"
     )
 
+    // LẮNG NGHE SỰ KIỆN TẮT/MỞ MÀN HÌNH ĐỂ NGẮT MIC TIẾT KIỆM PIN
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, intent: Intent?) {
+            val autoSleep = sp.getBoolean("auto_sleep", true)
+            if (intent?.action == Intent.ACTION_SCREEN_OFF && autoSleep) {
+                try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
+                speechService = null
+            } else if (intent?.action == Intent.ACTION_SCREEN_ON && autoSleep) {
+                startVosk()
+            }
+        }
+    }
+
     init {
         StorageService.unpack(context, "model-en", "model", { m: Model -> model = m; startVosk() }, { e -> Log.e("TAssistant", "Model error: ${e.message}") })
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_SCREEN_ON) }
+        context.registerReceiver(screenReceiver, filter)
     }
 
     private fun startVosk() {
@@ -48,9 +69,30 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         mainHandler.postDelayed({ startVosk() }, 1000)
     }
 
+    // TẠM DỪNG NHẠC KHI TRỢ LÝ ĐANG LẮNG NGHE
+    private fun pauseMedia() {
+        if (audioManager.isMusicActive) {
+            wasMusicPlaying = true
+            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        }
+    }
+
+    // TRẢ LẠI NHẠC KHI TRỢ LÝ ĐÃ XONG VIỆC
+    private fun resumeMedia() {
+        if (wasMusicPlaying) {
+            wasMusicPlaying = false
+            mainHandler.postDelayed({
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+            }, 1000)
+        }
+    }
+
     fun forceTrigger() {
         if (isVoiceActive) return
         isVoiceActive = true
+        pauseMedia()
         audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         AssistantService.instance?.stopSpeak()
         speechService?.setPause(false)
@@ -64,6 +106,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         
         if (!isVoiceActive && p.contains(wake)) {
             isVoiceActive = true
+            pauseMedia()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
             mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
@@ -83,6 +126,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
 
         if (!isVoiceActive && text.contains(wake)) {
             isVoiceActive = true
+            pauseMedia()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         }
@@ -121,7 +165,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         AssistantService.instance?.stopSpeak()
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
-        
+        resumeMedia()
         speechService?.setPause(false)
     }
 
@@ -129,16 +173,15 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         isVoiceActive = false
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
+        resumeMedia()
         hardRestartVosk()
     }
     
-    override fun onTimeout() { 
-        hardRestartVosk() 
-    }
-    
+    override fun onTimeout() { hardRestartVosk() }
     override fun onFinalResult(h: String) {}
     
     fun destroy() { 
+        try { context.unregisterReceiver(screenReceiver) } catch (e: Exception) {}
         try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
         AssistantService.instance?.stopSpeak()
         audioManager.abandonAudioFocus(null) 
