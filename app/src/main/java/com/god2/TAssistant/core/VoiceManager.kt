@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -33,7 +34,6 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         "a lam" to "alarm", "ti mer" to "timer", "wi fi" to "wifi", "blue tooth" to "bluetooth"
     )
 
-    // LẮNG NGHE SỰ KIỆN TẮT/MỞ MÀN HÌNH ĐỂ NGẮT MIC TIẾT KIỆM PIN
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, intent: Intent?) {
             val autoSleep = sp.getBoolean("auto_sleep", true)
@@ -69,7 +69,14 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         mainHandler.postDelayed({ startVosk() }, 1000)
     }
 
-    // TẠM DỪNG NHẠC KHI TRỢ LÝ ĐANG LẮNG NGHE
+    private fun playWakeSound() {
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+            mainHandler.postDelayed({ toneGen.release() }, 200)
+        } catch (e: Exception) {}
+    }
+
     private fun pauseMedia() {
         if (audioManager.isMusicActive) {
             wasMusicPlaying = true
@@ -78,7 +85,6 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         }
     }
 
-    // TRẢ LẠI NHẠC KHI TRỢ LÝ ĐÃ XONG VIỆC
     private fun resumeMedia() {
         if (wasMusicPlaying) {
             wasMusicPlaying = false
@@ -92,6 +98,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     fun forceTrigger() {
         if (isVoiceActive) return
         isVoiceActive = true
+        playWakeSound()
         pauseMedia()
         audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         AssistantService.instance?.stopSpeak()
@@ -106,6 +113,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         
         if (!isVoiceActive && p.contains(wake)) {
             isVoiceActive = true
+            playWakeSound()
             pauseMedia()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
@@ -126,6 +134,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
 
         if (!isVoiceActive && text.contains(wake)) {
             isVoiceActive = true
+            playWakeSound()
             pauseMedia()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)

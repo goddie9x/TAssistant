@@ -22,8 +22,8 @@ android {
         applicationId = "com.god2.TAssistant"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.2.2"
+        versionCode = 7
+        versionName = "1.2.2.2"
     }
 
     signingConfigs {
