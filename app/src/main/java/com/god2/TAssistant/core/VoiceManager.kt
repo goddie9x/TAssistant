@@ -28,6 +28,9 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     @Volatile private var isVoiceActive = false
     private var wasMusicPlaying = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    
+    // Timer để tự động đóng popup nếu không có hoạt động
+    private var autoCloseRunnable: Runnable = Runnable { releaseAndStop() }
 
     private val quickFuzzyMap = mapOf(
         "you tube" to "youtube", "face book" to "facebook", "tik tok" to "tiktok",
@@ -95,11 +98,17 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
         }
     }
 
+    private fun resetAutoCloseTimer(delay: Long = 5000) {
+        mainHandler.removeCallbacks(autoCloseRunnable)
+        mainHandler.postDelayed(autoCloseRunnable, delay)
+    }
+
     fun forceTrigger() {
         if (isVoiceActive) return
         isVoiceActive = true
         playWakeSound()
         pauseMedia()
+        resetAutoCloseTimer()
         audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         AssistantService.instance?.stopSpeak()
         speechService?.setPause(false)
@@ -115,12 +124,14 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             isVoiceActive = true
             playWakeSound()
             pauseMedia()
+            resetAutoCloseTimer()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
             mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") }
         }
         
         if (isVoiceActive) {
+            resetAutoCloseTimer() // Cứ mỗi khi người dùng nói, reset lại timer
             var displayStr = if (p.contains(wake)) p.substringAfter(wake).trim() else p
             quickFuzzyMap.forEach { (k, v) -> displayStr = displayStr.replace(k, v) }
             if (displayStr.isNotEmpty()) mainHandler.post { overlay.updateContent(displayStr) }
@@ -136,6 +147,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             isVoiceActive = true
             playWakeSound()
             pauseMedia()
+            resetAutoCloseTimer()
             AssistantService.instance?.stopSpeak()
             audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         }
@@ -146,6 +158,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
             
             if (cmd.isNotEmpty()) {
                 speechService?.setPause(true)
+                mainHandler.removeCallbacks(autoCloseRunnable) // Tạm ngắt timer để xử lý lệnh
                 
                 mainHandler.post {
                     overlay.showFlashCommand(cmd) { finalCmd ->
@@ -155,7 +168,8 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
                                     if (!isVoiceActive) return@post
                                     overlay.showOverlay("Assistant", resp, false)
                                     AssistantService.instance?.speak(resp) { 
-                                        mainHandler.postDelayed({ releaseAndStop() }, 1200) 
+                                        // GIẢM THỜI GIAN HIỂN THỊ XUỐNG 300ms SAU KHI NÓI XONG
+                                        mainHandler.postDelayed({ releaseAndStop() }, 300) 
                                     }
                                 }
                             }
@@ -164,6 +178,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
                 }
             } else { 
                 mainHandler.post { overlay.showOverlay("TAssistant", "Listening...") } 
+                resetAutoCloseTimer()
             }
         }
     }
@@ -171,6 +186,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     private fun releaseAndStop() {
         if (!isVoiceActive) return
         isVoiceActive = false
+        mainHandler.removeCallbacks(autoCloseRunnable)
         AssistantService.instance?.stopSpeak()
         mainHandler.post { overlay.hide() }
         audioManager.abandonAudioFocus(null)
@@ -179,10 +195,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     }
 
     override fun onError(e: Exception) { 
-        isVoiceActive = false
-        mainHandler.post { overlay.hide() }
-        audioManager.abandonAudioFocus(null)
-        resumeMedia()
+        releaseAndStop()
         hardRestartVosk()
     }
     
@@ -190,6 +203,7 @@ class VoiceManager(private val context: Context) : org.vosk.android.RecognitionL
     override fun onFinalResult(h: String) {}
     
     fun destroy() { 
+        mainHandler.removeCallbacks(autoCloseRunnable)
         try { context.unregisterReceiver(screenReceiver) } catch (e: Exception) {}
         try { speechService?.stop(); speechService?.shutdown() } catch (e: Exception) {}
         AssistantService.instance?.stopSpeak()
